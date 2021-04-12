@@ -87,10 +87,11 @@ library("FactoMineR")
 #install_github("kassambara/factoextra")
 library("factoextra")
 
+
+#rna8 <- rna7 %>%  rename(" " = gene)
+
 #pca
 #remove gene title
-rna8 <- rna7 %>%  rename(" "=gene)
-
 rna9 <- rna7 %>% remove_rownames %>% column_to_rownames(var = "gene")
 rna.pca <- PCA(rna9, graph=FALSE)
 print(rna.pca)
@@ -132,4 +133,37 @@ library(ggbiplot)
 
 ggbiplot(rna.pca2)
 ```
+#Figures assignment
+Fig 1c
+Fig2 a b c d
+Fig3 a b d
+Fig4 a b c d e
+Fig5 c e
+
+##Sean 3 a b d
+```{r}
+
+```
+
+
+##Tanner 2 a c d
+```{r}
+
+```
+
+##Yuru 4a,c,5c
+```{r}
+
+```
+
+##Chiteri 1 c 2 b 5e
+```{r}
+
+```
+
+##Juan 4b d e
+```{r}
+
+```
+
 
