@@ -208,11 +208,12 @@ J=PCA$x %>%
   theme_bw(base_size=32)
 J
 
-
+autoplot(PCA)
 
 plot(I)
 plot(I$lambda)
 plot(PCA$x) # any of the PCA names can be called here (where x is)
+
 
 
 #Using Monocle
