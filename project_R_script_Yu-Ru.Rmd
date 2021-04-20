@@ -167,6 +167,7 @@ Fig5 c e
 
 library(readxl)
 Table_S3 <- read_excel("aav6428_Nelms_Table-S3.xlsx")
+str(Table_S3)
 DEG <- Table_S3$Gene # differentially expressed genes
 length(DEG)
 
