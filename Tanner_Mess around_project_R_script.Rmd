@@ -1,0 +1,237 @@
+---
+title: "BCB_Project"
+author: "Chiteri and Tanner"
+date: "4/4/2021"
+output: html_document
+---
+
+library(tidyverse)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+#Dependencies
+library("tidyverse")
+library("factoextra")
+library("FactoMineR")
+```
+
+```{r}
+suppressMessages(library(tidyverse))
+```
+
+```{r}
+#Set working directory
+setwd('.')
+getwd()
+list.files()
+#Read data
+rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
+#str(rna)
+head(rna)
+#rename first column
+
+rna <- rename(rna, gene = X1)
+
+#get into long format
+rna1 <- pivot_longer(rna, cols = starts_with('Cell'))
+
+#separate name into 4 columns
+#rename the columns
+#select the columns
+
+
+rna3 <- separate(rna1, name, into = paste0("y",1:4), sep = " ") %>% 
+  rename(c('cell' = y2, 'rep'=y4, 'count' = value)) %>% select(c(gene, cell, rep, count))
+
+##convert cell & rep into numeric & Count unique cells.
+n.cells <- unique(as.numeric(rna3$cell))
+min(n.cells)
+max(n.cells)
+#We get 206 cells??
+#Find which cells are absent?
+which(!(seq(min(n.cells), max(n.cells)) %in% n.cells))
+#cells missing
+#42,95,166,167,168,169,186,187,189
+
+
+#list of all cells that failed to pass QC test
+#obtained from Table1 of paper
+#notice the cells missing from n.cells are here!!
+failed <- c(8,12,18,22,25,42,52,54,55,62,63,64,66,67,69,73,75,
+            76,77,81,82,83,84,86,88,89,90,91,92,93,95,96,106,113,
+            121,123,124,127,129,130,140,141,142,143,144,145,146,147,
+            148,149,153,157,163,165,166,167,168,169,170,171,172,173,
+            176,182,185,186,187,188,189,191,194,216)
+
+#Filter following cells that failed to pass QC
+rna4 <- filter(rna3, !cell %in% failed)
+
+##convert cell & rep into numeric & Count unique cells.
+n.cells2 <- unique(as.numeric(rna4$cell)) #now we have 144 cells
+
+#rna4 contains all cells that passed QC and were used in the analysis
+
+##dataset to use for e.g. Fig. 2A, Fig S4). We need 128 cells
+#pooling cells using sum
+rna5 <- rna4 %>%  group_by(gene,cell,) %>% summarise(n=n(), sum = sum(count))
+
+n.cells3 <- unique(as.numeric(rna5$cell))
+
+rna6 <- filter(rna5, n!=1)
+n.cells4 <- unique(as.numeric(rna6$cell)) #We get 128 cells
+
+
+#PCA
+#pivot the data wider for PCA
+#First join two columns (cell, rep) into one column cell
+#Pivot wider
+rna7 <- rna4 %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
+
+#Could not get prcomp to work here so I had to find alternatives
+library("FactoMineR")
+#library(devtools)
+#install_github("kassambara/factoextra")
+library("factoextra")
+
+
+#rna8 <- rna7 %>%  rename(" " = gene)
+
+#pca
+#remove gene title
+rna9 <- rna7 %>% remove_rownames %>% column_to_rownames(var = "gene")
+
+# transpose data frame so cells are row and genes are columns
+rna9 <- as.data.frame(t(as.matrix(rna9)))
+
+rna.pca <- PCA(rna9, graph=FALSE)
+print(rna.pca)
+
+eigenvalues <- rna.pca$eig
+head(eigenvalues[, 1:2])
+
+to_plot <- head(eigenvalues[, 1:2])
+
+#plot eigenvalues vs variance
+barplot(to_plot[,2], names.arg=1:nrow(to_plot), 
+       main = "Variances",
+       xlab = "Principal Components",
+       ylab = "Percentage of variances",
+       col ="steelblue") +
+# Add connected line segments to the plot
+lines(x = 1:nrow(to_plot), to_plot[, 2], 
+      type="b", pch=19, col = "red")
+
+
+fviz_screeplot(rna.pca, ncp=10)
+```
+```{r}
+
+#plot.PCA(rna.pca, axes = c(1,2), choix=c("ind", "var"))
+
+fviz_pca_var(rna.pca, col.var="contrib")
+```
+
+```{r}
+rna.pca2 <- prcomp(rna7[,2:ncol(rna7)], center=TRUE, scale.=TRUE)
+
+summary(rna.pca2)
+```
+```{r}
+library(devtools)
+#install_github("vqv/ggbiplot")
+library(ggbiplot)
+
+ggbiplot(rna.pca2)
+```
+#Figures assignment
+Fig 1c
+Fig2 a b c d
+Fig3 a b d
+Fig4 a b c d e
+Fig5 c e
+
+##Sean 3 a b d
+```{r}
+
+```
+
+
+##Tanner 2 a c d
+```{r}
+library("princurve")
+install.packages('PRcurve')
+suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
+suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
+suppressWarnings(suppressPackageStartupMessages(library(scran)))
+suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+library(slingshot)
+
+library(monocle)
+library("princurve")
+library(dplyr)
+
+
+#Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
+variance2000 = read.table("2000genE_s3.txt", header= T)
+
+Variance2000transcripts=right_join(rna7,variance2000, "gene")
+
+#Trying the PCA with prcomp
+#remove gene title
+rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
+PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
+summary(PCA)
+plot(PCA)
+
+##Allows us to see the variable in the PCA result
+# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
+names(PCA)
+
+PCA[1:10]
+
+#PCA 10 as a matrix while selecting the X values from the PCA
+PCAX= as.matrix(PCA$x, (c[,1:10]))
+PCAX
+
+#Correct way to only use PC10? I don't think so but I am unsure
+
+I=principal_curve(PCAX, smoother="smooth.spline")
+print(I)
+
+J=PCA$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
+  theme_bw(base_size=32)
+J
+
+autoplot(PCA)
+
+plot(I)
+plot(I$lambda)
+plot(PCA$x) # any of the PCA names can be called here (where x is)
+
+
+
+#Using Monocle
+
+
+##Yuru 4a,c,5c
+```{r}
+
+```
+
+##Chiteri 1 c 2 b 5e
+```{r}
+
+```
+
+##Juan 4b d e
+```{r}
+
+```
+
+
