@@ -177,21 +177,8 @@ library("princurve")
 library(dplyr)
 
 ##PCA for pairwise comparison of replicates
- 
-library(readr)
-library(tidyverse)
 
-Anther_size = read.table("Updated_S1.txt", header= T)
-
-
-
-Anther_size1 = read.csv("Updated_S1.csv", header= T)
-
-rna4a= as.integer(rna4$cell)
-
-Anther_sort=right_join(rna4, Anther_size, "cell")
-
-
+PCA2= prcomp(Anther_sort[Anther_sort$count,], center=TRUE, scale.=TRUE)
 
 
 #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
@@ -236,16 +223,71 @@ plot(PCA$x) # any of the PCA names can be called here (where x is)
 
 
 
+#Adding Anther size... it may not matter
+
+###################################################
+# make the columns the same value type
+#Anther_sort$cell <- as.numeric(Anther_sort$cell)
+#Anther_sort$rep <- as.numeric(Anther_sort$rep)
+#Anther_sort$count <- as.numeric(Anther_sort$count)
+ 
+library(readr)
+
+Anther_size = read.table("Updated_S1.txt", header= T)
+
+
+rna4$cell <- as.numeric(as.character(rna4$cell))
+
+Anther_sort=right_join(rna4, Anther_size, "cell")
+
+Anther_sorted=Anther_sort[with(Anther_sort,order(Anther_size)), ]
+
+
+#REMOVE UNWANTED COLUMNS
+rnaT <- select(Anther_sorted, -c(5:6)) 
+
+rna7T <- rnaT %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
+
+dim(rna7T)
 
 
 
+##################################
 
 ####
-library(stringr)
+#MAtheus help library(stringr)
+library(dplyr)
+
+install.packages('LearnBayes')
+
+
+
+HHHHH <- rna4 %>% group_by(cell, rep) %>% filter( rep =="2") %>% droplevels()
+
+y= as.data.frame(HHHHH)
+x= as.data.frame(rna4)
+
+JoinHHHH= right_join(y, x, "cell")
+JJJJJ <- rna4 %>% select(rep) %>% filter( rep =="2")%>% droplevels()
+
+a= c(HHHHH)
+b=c(JJJJJ)
+
+df= data.frame(a,b)
+
+c
+#Using Monocle
+
+
+
+
+
+#########################
+#MAtheus help library(stringr)
 library(dplyr)
 
 ls()
-rm(list=setdiff(ls(), "rna4"))
+
 
 check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n()) 
 head(check_reps)
@@ -280,7 +322,9 @@ pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
 sum(pca_data$rep == 1)
 sum(pca_data$rep == 2)
 
-#Using Monocle
+
+
+
 
 
 ##Yuru 4a,c,5c
