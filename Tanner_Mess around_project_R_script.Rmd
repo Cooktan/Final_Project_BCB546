@@ -4,20 +4,17 @@ author: "Chiteri and Tanner"
 date: "4/4/2021"
 output: html_document
 ---
-
-library(tidyverse)
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 ```{r}
 #Dependencies
 library("tidyverse")
 library("factoextra")
 library("FactoMineR")
-```
 
-```{r}
-suppressMessages(library(tidyverse))
+
 ```
 
 ```{r}
@@ -25,127 +22,185 @@ suppressMessages(library(tidyverse))
 setwd('.')
 getwd()
 list.files()
-#Read data
+```
+
+Reading data
+
+```{r}
+# Counts
 rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
-#str(rna)
+rna <- rename(rna, gene = X1) #rename first column
+
+# Quality control: PASS/FAIL
+qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx')
+names(qc)[12] <- 'QC' 
+qc <- qc[qc$QC == "PASS", "Cell Number"]
+
+# Deferentially expressed genes during specific stages
+deg <- readxl::read_excel('./aav6428_Nelms_Table-S2.xlsx')[,1:2]
+names(deg) <- c('gene', 'phase')
+deg <- deg %>% filter(phase != "G1") %>% select(gene)
+
 head(rna)
-#rename first column
+head(qc)
+```
 
-rna <- rename(rna, gene = X1)
-
+```{r}
 #get into long format
 rna1 <- pivot_longer(rna, cols = starts_with('Cell'))
+```
 
-#separate name into 4 columns
+
+```{r}
+#separate 'name' into 4 columns, 
 #rename the columns
 #select the columns
 
-
 rna3 <- separate(rna1, name, into = paste0("y",1:4), sep = " ") %>% 
-  rename(c('cell' = y2, 'rep'=y4, 'count' = value)) %>% select(c(gene, cell, rep, count))
+  select(!c(y1, y3)) %>% rename(c('cell' = y2, 'rep'= y4, 'count' = value))
 
-##convert cell & rep into numeric & Count unique cells.
-n.cells <- unique(as.numeric(rna3$cell))
-min(n.cells)
-max(n.cells)
-#We get 206 cells??
-#Find which cells are absent?
-which(!(seq(min(n.cells), max(n.cells)) %in% n.cells))
-#cells missing
-#42,95,166,167,168,169,186,187,189
+```
 
 
-#list of all cells that failed to pass QC test
-#obtained from Table1 of paper
-#notice the cells missing from n.cells are here!!
-failed <- c(8,12,18,22,25,42,52,54,55,62,63,64,66,67,69,73,75,
-            76,77,81,82,83,84,86,88,89,90,91,92,93,95,96,106,113,
-            121,123,124,127,129,130,140,141,142,143,144,145,146,147,
-            148,149,153,157,163,165,166,167,168,169,170,171,172,173,
-            176,182,185,186,187,188,189,191,194,216)
+```{r}
+#Filter cells based on QC
+rna4 <- filter(rna3, cell %in% qc$`Cell Number`)
+dim(rna4)
+head(rna4)
 
-#Filter following cells that failed to pass QC
-rna4 <- filter(rna3, !cell %in% failed)
+paste0("Total number of cells after Quality Control: ", length(unique(as.numeric(rna4$cell))))
+```
 
+
+``` {r}
 ##convert cell & rep into numeric & Count unique cells.
 n.cells2 <- unique(as.numeric(rna4$cell)) #now we have 144 cells
 
 #rna4 contains all cells that passed QC and were used in the analysis
+```
+
+
+``` {r}
 
 ##dataset to use for e.g. Fig. 2A, Fig S4). We need 128 cells
 #pooling cells using sum
 rna5 <- rna4 %>%  group_by(gene,cell,) %>% summarise(n=n(), sum = sum(count))
+paste("There are ", length(unique(as.numeric(rna5$cell))), " unique cells in rna5")
+```
 
-n.cells3 <- unique(as.numeric(rna5$cell))
+``` {r}
+rna6 <- filter(rna5, n > 1)
 
-rna6 <- filter(rna5, n!=1)
-n.cells4 <- unique(as.numeric(rna6$cell)) #We get 128 cells
-
-
-#PCA
-#pivot the data wider for PCA
-#First join two columns (cell, rep) into one column cell
-#Pivot wider
-rna7 <- rna4 %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
+paste0("There are ", length(unique(as.numeric(rna6$cell))), " cells with a technical replicate in rna6.")
+```
 
 
+``` {r}
+#Join two columns cell and rep and go wider
 
-#Could not get prcomp to work here so I had to find alternatives
-library("FactoMineR")
-#library(devtools)
-#install_github("kassambara/factoextra")
-library("factoextra")
+rna7 <- rna4 %>%  
+  unite("cell",c(cell, rep), sep = "_") %>% 
+  pivot_wider(names_from = cell, values_from = count, names_prefix = 'cell')
+
+dim(rna7)
+```
 
 
-#rna8 <- rna7 %>%  rename(" " = gene)
-
-#pca
+``` {r}
 #remove gene title
 rna9 <- rna7 %>% remove_rownames %>% column_to_rownames(var = "gene")
 
+dim(rna9)
+
+rna7[1:5, 1:5]
+rna9[1:5, 1:4]
+
+```
+
+```{r}
 # transpose data frame so cells are row and genes are columns
-rna9 <- as.data.frame(t(as.matrix(rna9)))
-
-rna.pca <- PCA(rna9, graph=FALSE)
-print(rna.pca)
-
-eigenvalues <- rna.pca$eig
-head(eigenvalues[, 1:2])
-
-to_plot <- head(eigenvalues[, 1:2], n=10)
-
-#plot eigenvalues vs variance
-barplot(to_plot[,2], names.arg=1:nrow(to_plot), 
-       main = "Variances",
-       xlab = "Principal Components",
-       ylab = "Percentage of variances",
-       col ="steelblue") +
-# Add connected line segments to the plot
-lines(x = 1:nrow(to_plot), to_plot[, 2], 
-      type="b", pch=19, col = "red")
-
-#screenplot 
-fviz_screeplot(rna.pca, ncp=10)
-```
-```{r}
-
-#plot.PCA(rna.pca, axes = c(1,2), choix=c("ind", "var"))
-
-fviz_pca_var(rna.pca, col.var="contrib")
+rna9_t <- as.data.frame(t(as.matrix(rna9)))
 ```
 
 ```{r}
-rna.pca2 <- prcomp(rna7[,2:ncol(rna7)], center=TRUE, scale.=TRUE)
+# next two chunks for getting rid of 'unreplicated' cells 
+cells <- as.data.frame(row.names(rna9_t))
+names(cells) <- 'key'
 
-summary(rna.pca2)
+cells %>% 
+  separate(key, c('cell', 'rep'), remove = F) %>% 
+  group_by(cell) %>% filter(n() == 2) %>% 
+  ungroup() %>% select(key) -> cells_after_qc
 ```
+
+
 ```{r}
-library(devtools)
-#install_github("vqv/ggbiplot")
-library(ggbiplot)
-
-ggbiplot(rna.pca2)
+# filtering out rna9 after quality control
+rna9_t %>% rownames_to_column() %>% 
+  filter(rowname %in% cells_after_qc$key) %>% 
+  column_to_rownames() -> rna9_f
 ```
+
+
+```{r}
+# Re arranging rna9_aqc moving cells as columns 
+rna9_ft <- as.data.frame(t(as.matrix(rna9_t)))
+rna9_ft %>% rownames_to_column("gene") -> rna9_ft 
+```
+
+```{r}
+# Filtering out genes with less than 100 counts across cells 
+rna9_ft %>%   
+  arrange(gene) %>% rowwise() %>%  
+  group_by(gene) %>% dplyr::summarise(m = sum(c_across(2:length(rna9_ft)-1))) %>%  
+  filter(m > 100) %>% select(gene) -> exp_genes
+
+rna_ftf <- as.tibble(rna9_ft[rna9_ft$gene %in% exp_genes$gene,])
+dim(rna_ftf)
+```
+Filtering out genes differentially expressed in specific stages
+```{r}
+rna_ftfc <- rna_ftf %>% filter(!gene %in% deg$gene)
+```
+
+Normalization
+```{r}
+
+# Step 1: divided each individual count by the total counts per cell, and multiply by 1000000 
+
+rna_norm <- as.tibble(rna_ftfc$gene) # tibble ngenes x 1 for starting fillling with normalized data
+
+for (i in 2:length(rna_ftfc)) {
+  a <- (rna_ftfc[,i]/sum(rna_ftfc[,i]))*1000000
+  rna_norm <- cbind(rna_norm, a)
+  a <- NULL
+}
+
+rna_norm <- column_to_rownames(rna_norm, 'value') # for transposing
+
+# Step 2: log transformation after add 11
+
+rna_norm <- log10(rna_norm[,1:length(rna_norm)] + 11 )
+
+rna_norm[1:5, 1:5]
+
+rna_final <- as.data.frame(t(as.matrix(rna_norm)))
+rna_final[1:5, 1:5]
+
+```
+
+
+```{r}
+PCA = prcomp(rna_final, center=TRUE, scale.=TRUE)
+summary(PCA)
+
+PCA$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point()
+
+```
+
 #Figures assignment
 Fig 1c
 Fig2 a b c d
