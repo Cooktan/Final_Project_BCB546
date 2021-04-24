@@ -196,13 +196,17 @@ table1.2 <- table1.1 %>%  filter(quality_control=="PASS") %>%  select(cell_numbe
 pca3 <- prcomp(table1.2[,2:ncol(table1.2)], center = TRUE, scale. = TRUE)
 summary(pca3)
 
-ggbiplot(pca3, groups = colnames(table1.2)[2:3])
+ggbiplot::ggbiplot(pca3, groups = colnames(table1.2)[1])
+autoplot(pca3, data=table1.2, colour = 'anther_size_mm')
 ```
 
 
 ```{r}
 ######################
 with_reps <- rna4 %>% pivot_wider(names_from = gene, values_from= count)
+
+
+
 
 
 #remove variables with zero variance
@@ -220,6 +224,42 @@ new_pca2 <- prcomp(with_reps[,3:ncol(with_reps)])
 ggbiplot::ggbiplot(new_pca, data = with_reps1, group='rep',)
 #####################
 
+```
+###working with juan
+```{r}
+
+#use rna6
+
+rna66 <- rna6 %>% filter(sum > 100)
+
+#get into long format
+with_reps_pivot <- pivot_longer(with_reps, cols = colnames(with_reps)[3:ncol(with_reps)])
+
+##group...can't ungroup
+with_reps_grouped <- with_reps_pivot %>%  group_by(cell,name) %>% dplyr::summarise(n=n(), sum=sum(value, na.rm = TRUE)) %>% filter(sum > 100, n==2) %>% arrange(as.numeric(cell))
+
+w_r_wider <- with_reps_grouped %>% pivot_wider(names_from = name, values_from = sum, values_fill = 0) %>%  arrange(as.numeric(cell))
+
+##allows to ungroup
+with_reps_grouped2 <- with_reps_pivot %>%  group_by(cell,name) %>% dplyr::mutate(n= n(), sum=sum(value)) %>% filter(sum > 100) %>%  arrange(as.numeric(cell)) %>% ungroup()
+
+xx <- with_reps_grouped2 %>%  filter(n !=1)
+
+xy <- xx %>% pivot_wider(names_from = name, values_from = value, values_fill = 0) %>% arrange(as.numeric(cell))
+
+trials <- rna6 %>%  group_by(gene) %>% dplyr::summarise(n= n(), sum=sum(sum)) %>% filter(sum > 100)
+
+xz <- filter(trials, n == 128)
+
+w_trial <- trials %>% pivot_wider(names_from = name, values_from = sum, values_fill = 0) 
+
+#%>% filter(sum > 100) %>%  arrange(as.numeric(cell)) %>% ungroup()
+
+
+w_pca <- prcomp(w_trial[, 2:ncol(w_trial)])
+
+ggbiplot::ggbiplot(w_pca)
+autoplot(w_pca)
 ```
 
 ##Juan 4b d e
