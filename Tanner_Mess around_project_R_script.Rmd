@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("tidyverse")
 library("factoextra")
 library("FactoMineR")
-
+library("readxl")
 
 ```
 
@@ -32,7 +32,7 @@ rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx')
+qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
 
