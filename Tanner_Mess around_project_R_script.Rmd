@@ -144,7 +144,7 @@ rna9_t %>% rownames_to_column() %>%
 
 ```{r}
 # Re arranging rna9_aqc moving cells as columns 
-rna9_ft <- as.data.frame(t(as.matrix(rna9_t)))
+rna9_ft <- as.data.frame(t(as.matrix(rna9_f)))
 rna9_ft %>% rownames_to_column("gene") -> rna9_ft 
 ```
 
