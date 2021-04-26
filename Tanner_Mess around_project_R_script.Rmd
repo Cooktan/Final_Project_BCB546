@@ -216,62 +216,78 @@ Fig5 c e
 
 ##Tanner 2 a c d
 ```{r include=FALSE}
-library("princurve")
 install.packages('PRcurve')
-suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
 suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
-suppressWarnings(suppressPackageStartupMessages(library(scran)))
+
 suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
 library(slingshot)
-
 library(monocle)
 library("princurve")
 library(dplyr)
+library(data.table)
 
+#Pseudotime
 
+#Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
-
-#Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
+#Transform data to merge files to use only 2000 genes
+rna_final_Tanner= as.data.frame(t(rna_final)) 
 variance2000 = read.table("2000genE_s3.txt", header= T)
 
-Variance2000transcripts=right_join(rna7,variance2000, "gene")
+#Add a column label to rownames
+setDT(rna_final_Tanner, keep.rownames = "gene")[]
+
+#Merge Files
+Variance2000transcripts=inner_join(rna_final_Tanner,variance2000, "gene" )# Discrepancy on genes.. We lost some due to not being present
+
+#Remove gene id column
+Variance2000transcripts$gene=NULL
 
 #Trying the PCA with prcomp
-#remove gene title
-rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
-PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
+
+
+PCA2= prcomp(Variance2000transcripts, center=TRUE, scale.=TRUE)
 summary(PCA)
-plot(PCA)
+PCA2$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point()
 
-##Allows us to see the variable in the PCA result
-# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
-names(PCA)
-
-PCA1:10]
+plot(PCA2)
+names(PCA2)
 
 #PCA 10 as a matrix while selecting the X values from the PCA
-PCAX= as.data.frame(PCA$x)
+PCAX= as.matrix(PCA2$x)
 PCAX
 
-#Correct way to only use PC10? I don't think so but I am unsure
-
-I=principal_curve(PCAX$c[1:10])
-
+I=principal_curve(PCAX)
 print(I)
 
-J=PCA$x %>% 
+#PC1vsPC2 graph
+
+J=PCA2$x %>% 
   as.data.frame %>%
   ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
   theme_bw(base_size=32)
 J
 
-
+#Principal Curve
 plot(I)
 plot(I$lambda)
-plot(PCA$x) # any of the PCA names can be called here (where x is)
+plot(PCA2$x) # any of the PCA names can be called here (where x is)
 
 
+##Allows us to see the variable in the PCA result
+# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
+names(PCA)
+```
+
+
+```{r include=FALSE}
+##Everything below doesn't help out but please DO NOT DELETE
+
+##########################################################################################################################
 
 
 #Adding Anther size... it may not matter
@@ -330,9 +346,6 @@ c
 #Using Monocle
 
 
-
-
-
 #########################
 #MAtheus help library(stringr)
 library(dplyr)
@@ -372,12 +385,12 @@ pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
 
 sum(pca_data$rep == 1)
 sum(pca_data$rep == 2)
+########################################################################################################
+#Please do not delete ^
+```
 
 
-
-
-
-
+```{r include=FALSE}
 ##Yuru 4a,c,5c
 ```{r}
 
