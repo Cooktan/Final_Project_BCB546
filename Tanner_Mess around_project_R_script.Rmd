@@ -1,6 +1,6 @@
 ---
 title: "BCB_Project"
-author: "Chiteri and Tanner"
+author: "Chiteri and Tanner and Juan"
 date: "4/4/2021"
 output: html_document
 ---
@@ -223,17 +223,13 @@ suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
 suppressWarnings(suppressPackageStartupMessages(library(scran)))
 suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
 library(slingshot)
 
 library(monocle)
 library("princurve")
 library(dplyr)
 
-##PCA for pairwise comparison of replicates
 
-PCA2= prcomp(Anther_sort[Anther_sort$count,], center=TRUE, scale.=TRUE)
 
 
 #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
@@ -252,15 +248,16 @@ plot(PCA)
 # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
 names(PCA)
 
-PCA[1:10]
+PCA1:10]
 
 #PCA 10 as a matrix while selecting the X values from the PCA
-PCAX= as.matrix(PCA$x, (c[,1:10]))
+PCAX= as.data.frame(PCA$x)
 PCAX
 
 #Correct way to only use PC10? I don't think so but I am unsure
 
-I=principal_curve(PCAX, smoother="smooth.spline")
+I=principal_curve(PCAX$c[1:10])
+
 print(I)
 
 J=PCA$x %>% 
@@ -269,7 +266,6 @@ J=PCA$x %>%
   theme_bw(base_size=32)
 J
 
-autoplot(PCA)
 
 plot(I)
 plot(I$lambda)
