@@ -191,7 +191,7 @@ rna_final[1:5, 1:5]
 
 
 ```{r}
-PCA = prcomp(rna_final, center=TRUE, scale.=TRUE)
+PCA = prcomp(rna_final, center=TRUE, scale.=FALSE)
 summary(PCA)
 
 PCA$x %>% 
@@ -216,38 +216,40 @@ Fig5 c e
 
 ##Tanner 2 a c d
 ```{r include=FALSE}
-install.packages('PRcurve')
-suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
-
-suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
-
-library(slingshot)
-library(monocle)
+library(ggplot2)
 library("princurve")
 library(dplyr)
 library(data.table)
-
+library(pheatmap)
 #Pseudotime
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
 #Transform data to merge files to use only 2000 genes
 rna_final_Tanner= as.data.frame(t(rna_final)) 
-variance2000 = read.table("2000genE_s3.txt", header= T)
+s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
 
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
 
 #Merge Files
-Variance2000transcripts=inner_join(rna_final_Tanner,variance2000, "gene" )# Discrepancy on genes.. We lost some due to not being present
+Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined table of all fig s3, order by variance and then slice 2000
 
+y= Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
+  select(1:258) %>% 
+  top_n(1999)
+
+rna_final
+
+y=(y[1:2000,])
+
+dim(s3)
 #Remove gene id column
-Variance2000transcripts$gene=NULL
+y$gene=NULL
 
 #Trying the PCA with prcomp
 
-
-PCA2= prcomp(Variance2000transcripts, center=TRUE, scale.=TRUE)
+PCA2= prcomp(y, center=TRUE, scale.=FALSE)
 summary(PCA)
 PCA2$x %>% 
   as.data.frame %>%
@@ -257,31 +259,54 @@ PCA2$x %>%
 plot(PCA2)
 names(PCA2)
 
+
+
 #PCA 10 as a matrix while selecting the X values from the PCA
-PCAX= as.matrix(PCA2$x)
+PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
+
+
+PCA2$x [,1:10]
 
 I=principal_curve(PCAX)
 print(I)
+plot(I)
 
+names(I)
 #PC1vsPC2 graph
 
 J=PCA2$x %>% 
   as.data.frame %>%
-  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
+  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=1) +
   theme_bw(base_size=32)
 J
 
+
 #Principal Curve
+?plot
 plot(I)
 plot(I$lambda)
-plot(PCA2$x) # any of the PCA names can be called here (where x is)
+plot(PCA2$center) # any of the PCA names can be called here (where x is)
 
+PCA2$x [,1:10]
+
+str(PCA2)
 
 ##Allows us to see the variable in the PCA result
 # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
-names(PCA)
+
+
+## Heat map...
+Variance2000transcripts=inner_join(rna_final_Tanner,s3 )
+Variance2000transcripts$gene<-NULL
+vst_cor <- as.matrix(cor(Variance2000transcripts, method="spearman"))
+
+pheatmap(vst_cor,border_color=NA)
+
 ```
+
+
+
 
 
 ```{r include=FALSE}
