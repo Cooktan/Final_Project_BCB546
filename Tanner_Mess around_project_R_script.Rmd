@@ -297,9 +297,11 @@ str(PCA2)
 
 
 ## Heat map...
-Variance2000transcripts=inner_join(rna_final_Tanner,s3 )
-Variance2000transcripts$gene<-NULL
-vst_cor <- as.matrix(cor(Variance2000transcripts, method="spearman"))
+Variance2000transcriptsRJ=inner_join(rna_final_Tanner,s3 )
+Variance2000transcriptsRJ$gene<-NULL
+vst_cor <- as.matrix(cor(Variance2000transcriptsRJ, method="spearman"))
+
+Variance2000transcriptsRJ[is.na(Variance2000transcriptsRJ)] = 0
 
 pheatmap(vst_cor,border_color=NA)
 
