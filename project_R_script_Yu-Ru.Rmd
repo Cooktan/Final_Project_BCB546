@@ -168,9 +168,17 @@ Fig5 c e
 
 
 ```
-## Figure 5a
-
+## figure 4
 ```{r}
+
+PCA = prcomp(rna_final, center=TRUE, scale.=TRUE)
+summary(PCA)
+
+PCA$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point()
+
 
 Table_S2 <- read_excel("aav6428_Nelms_Table-S2.xlsx")
 #str(Table_S2)
@@ -187,27 +195,68 @@ Table_S3$Cluster <- as.factor(Table_S3$Cluster)
 DEG <- Table_S3$Gene # differentially expressed genes
 length(DEG)
 
+
+rna_norm %>% rownames_to_column(var = "Gene")%>%left_join(Table_S3)  %>%  
+  ggplot()+
+  geom_bar(aes(x=Cluster),na.rm = T)
+
+
+
+Table_S3 %>% filter(Gene %in% MEG) %>% 
+  ggplot()+
+  geom_bar(aes(x=Cluster))
+
+Table_S3 %>% filter(!Gene %in% MEG) %>% 
+  ggplot()+
+  geom_bar(aes(x=Cluster))
+
+
+```
+
+
+## Figure 5a
+
+```{r}
+
+
+
+rna_ftf
+
+Test <- rna_norm %>% rownames_to_column(var = "gene")%>% right_join(Table_S2[,1]) #%>% drop_na()
+rownames(Test) <- Test$gene
+Test <- Test[,-1]
+dim(Test)
+
 rna_norm
 dim(rna_norm)
 rna_norm_3046 <- rna_norm %>% rownames_to_column(var = "Gene") %>% filter(Gene %in% DEG) %>% select(!Gene)
 dim(rna_norm_3046)
 
-rna_norm_456 <- rna_norm %>% rownames_to_column(var = "Gene") %>% filter(Gene %in% MEG) %>% select(!Gene)
+typeof(MEG)
+
+rna_norm_456 <- rna_norm1 %>% rownames_to_column(var = "Gene") %>% filter(Gene %in% MEG) #%>% select(!Gene)
 dim(rna_norm_456)
 
 rownames(rna_norm)
 PCA1 = prcomp(rna_norm_3046, center=TRUE, scale.=TRUE)
 summary(PCA1)
 
-PCA2 = prcomp(rna_norm_456, center=TRUE, scale.=TRUE)
+PCA2 = prcomp(rna_norm_456[,-1], center=TRUE, scale.=TRUE)
 summary(PCA2)
 
-PCA2$x %>% 
-  as.data.frame %>%
-  ggplot(aes(x = PC1, y = PC2)) + 
-  geom_point()
 
-rna4 %>%left_join(Table_S1.1) %>% left_join(Table_S2[,1:2]) %>% drop_na()
+
+Table_S2.1 <- Table_S2 %>% filter (gene %in% rna_norm_456$Gene)
+dim(Table_S2.1)
+dim(PCA2$x)
+
+rna_norm_456
+PCA2$x %>% 
+  as.data.frame %>%mutate(phase=Table_S2.1$Cell_cycle_phase) %>% 
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point(aes(col=phase))
+
+#rna4 %>%left_join(Table_S1.1) %>% left_join(Table_S2[,1:2]) %>% drop_na()
 
 ```
 
