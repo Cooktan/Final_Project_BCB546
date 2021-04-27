@@ -1,6 +1,6 @@
 ---
 title: "BCB_Project"
-author: "Chiteri and Tanner"
+author: "Chiteri and Tanner and Juan"
 date: "4/4/2021"
 output: html_document
 ---
@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("tidyverse")
 library("factoextra")
 library("FactoMineR")
-
+library("readxl")
 
 ```
 
@@ -32,7 +32,7 @@ rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx')
+qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
 
@@ -144,7 +144,7 @@ rna9_t %>% rownames_to_column() %>%
 
 ```{r}
 # Re arranging rna9_aqc moving cells as columns 
-rna9_ft <- as.data.frame(t(as.matrix(rna9_t)))
+rna9_ft <- as.data.frame(t(as.matrix(rna9_f)))
 rna9_ft %>% rownames_to_column("gene") -> rna9_ft 
 ```
 
@@ -216,91 +216,142 @@ Fig5 c e
 
 ##Tanner 2 a c d
 ```{r include=FALSE}
-library("princurve")
 install.packages('PRcurve')
-suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
 suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
-suppressWarnings(suppressPackageStartupMessages(library(scran)))
+
 suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
 library(slingshot)
-
 library(monocle)
 library("princurve")
 library(dplyr)
+library(data.table)
 
-##PCA for pairwise comparison of replicates
- 
-library(readr)
-library(tidyverse)
+#Pseudotime
 
-Anther_size = read.table("Updated_S1.txt", header= T)
+#Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
-
-
-Anther_size1 = read.csv("Updated_S1.csv", header= T)
-
-rna4a= as.integer(rna4$cell)
-
-Anther_sort=right_join(rna4, Anther_size, "cell")
-
-
-
-
-#Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
+#Transform data to merge files to use only 2000 genes
+rna_final_Tanner= as.data.frame(t(rna_final)) 
 variance2000 = read.table("2000genE_s3.txt", header= T)
 
-Variance2000transcripts=right_join(rna7,variance2000, "gene")
+#Add a column label to rownames
+setDT(rna_final_Tanner, keep.rownames = "gene")[]
+
+#Merge Files
+Variance2000transcripts=inner_join(rna_final_Tanner,variance2000, "gene" )# Discrepancy on genes.. We lost some due to not being present
+
+#Remove gene id column
+Variance2000transcripts$gene=NULL
 
 #Trying the PCA with prcomp
-#remove gene title
-rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
-PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
+
+
+PCA2= prcomp(Variance2000transcripts, center=TRUE, scale.=TRUE)
 summary(PCA)
-plot(PCA)
+PCA2$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point()
 
-##Allows us to see the variable in the PCA result
-# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
-names(PCA)
-
-PCA[1:10]
+plot(PCA2)
+names(PCA2)
 
 #PCA 10 as a matrix while selecting the X values from the PCA
-PCAX= as.matrix(PCA$x, (c[,1:10]))
+PCAX= as.matrix(PCA2$x)
 PCAX
 
-#Correct way to only use PC10? I don't think so but I am unsure
-
-I=principal_curve(PCAX, smoother="smooth.spline")
+I=principal_curve(PCAX)
 print(I)
 
-J=PCA$x %>% 
+#PC1vsPC2 graph
+
+J=PCA2$x %>% 
   as.data.frame %>%
   ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
   theme_bw(base_size=32)
 J
 
-autoplot(PCA)
-
+#Principal Curve
 plot(I)
 plot(I$lambda)
-plot(PCA$x) # any of the PCA names can be called here (where x is)
+plot(PCA2$x) # any of the PCA names can be called here (where x is)
+
+
+##Allows us to see the variable in the PCA result
+# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
+names(PCA)
+```
+
+
+```{r include=FALSE}
+##Everything below doesn't help out but please DO NOT DELETE
+
+##########################################################################################################################
+
+
+#Adding Anther size... it may not matter
+
+###################################################
+# make the columns the same value type
+#Anther_sort$cell <- as.numeric(Anther_sort$cell)
+#Anther_sort$rep <- as.numeric(Anther_sort$rep)
+#Anther_sort$count <- as.numeric(Anther_sort$count)
+ 
+library(readr)
+
+Anther_size = read.table("Updated_S1.txt", header= T)
+
+
+rna4$cell <- as.numeric(as.character(rna4$cell))
+
+Anther_sort=right_join(rna4, Anther_size, "cell")
+
+Anther_sorted=Anther_sort[with(Anther_sort,order(Anther_size)), ]
+
+
+#REMOVE UNWANTED COLUMNS
+rnaT <- select(Anther_sorted, -c(5:6)) 
+
+rna7T <- rnaT %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
+
+dim(rna7T)
 
 
 
-
-
-
-
+##################################
 
 ####
-library(stringr)
+#MAtheus help library(stringr)
+library(dplyr)
+
+install.packages('LearnBayes')
+
+
+
+HHHHH <- rna4 %>% group_by(cell, rep) %>% filter( rep =="2") %>% droplevels()
+
+y= as.data.frame(HHHHH)
+x= as.data.frame(rna4)
+
+JoinHHHH= right_join(y, x, "cell")
+JJJJJ <- rna4 %>% select(rep) %>% filter( rep =="2")%>% droplevels()
+
+a= c(HHHHH)
+b=c(JJJJJ)
+
+df= data.frame(a,b)
+
+c
+#Using Monocle
+
+
+#########################
+#MAtheus help library(stringr)
 library(dplyr)
 
 ls()
-rm(list=setdiff(ls(), "rna4"))
+
 
 check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n()) 
 head(check_reps)
@@ -334,10 +385,12 @@ pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
 
 sum(pca_data$rep == 1)
 sum(pca_data$rep == 2)
+########################################################################################################
+#Please do not delete ^
+```
 
-#Using Monocle
 
-
+```{r include=FALSE}
 ##Yuru 4a,c,5c
 ```{r}
 
