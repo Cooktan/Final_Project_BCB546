@@ -243,37 +243,30 @@ library(pheatmap)
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
-
-
 ```{r}
+#Dependencies
 library(ggplot2)
 library("princurve")
 library(dplyr)
 library(data.table)
 library(pheatmap)
 
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(psupertime)
+```
+
+
+```{r}
+
 #Pseudotime
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
  
- library("princurve")
- install.packages('PRcurve')
- suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
- suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
+  ##PCA for pairwise comparison of replicates
 
- if (!requireNamespace("BiocManager", quietly = TRUE))
-     install.packages("BiocManager")
- library(slingshot)
-
- library(monocle)
- library("princurve")
- library(dplyr)
-
- ##PCA for pairwise comparison of replicates
-
- library(readr)
- library(tidyverse)
 
  Anther_size = read.table("Updated_S1.txt", header= T)
 
@@ -315,9 +308,12 @@ PCAX
 I=principal_curve(PCAX)
 print(I)
 #Principal Curve
-plot(I)
+plot(I, xmax=10, ymax=-20)
+plot
+
 plot(I$lambda)
 plot(PCA2$x) # any of the PCA names can be called here (where x is)
+
 
 #PC1vsPC2 graph
 
@@ -327,64 +323,54 @@ J=PCA2$x %>%
   theme_bw(base_size=32)
 J
 
+# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
 
- # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
-
-
-
-### Heat map...
 #https://jokergoo.github.io/ComplexHeatmap-reference/book/
-y
-y$gene<-NULL
-vst_cor <- as.matrix(cor(y, method="spearman")) ## 2000 genes 144 Cells
-
-
-
-pheatmap(vst_cor,border_color=NA,labels_row = FALSE, labels_col = F)
 
 
 
 ######
+```
 
+
+```{r}
 ## Heatmap 
 #Sort by Anther size
+
+### USe for heatmap
+rna_norm <- column_to_rownames(rna_norm, 'value') # for transposing
+
+
 ANTHER1=read.csv("with_anther_size", header=T)
 
 
 ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
-ANTHER3=t(ANTHER2)
+ANTHER2=as.tibble(ANTHER2)
 
-ANTHER4=ANTHER3[-c(1,2,3,4),]
-ANTHER5=as.data.frame(ANTHER4)
+#Remove cells that don't pass QC Result=144 cells
+ANTHER3 <- filter(ANTHER2, cell %in% qc$`Cell Number`)
+ANTHER4=t(ANTHER3)
+
+#Remove rows X, cell, rep,anther_size_mm
+ANTHER5=ANTHER4[-c(1,2,3,4),]
+ANTHER6=as.data.frame(ANTHER5)
 
 #Add row names as a column for sorting
-library(data.table)
 
-setDT(ANTHER5, keep.rownames = "gene")[]
+setDT(ANTHER6, keep.rownames = "gene")[]
 
 #Anther length with 3040 genes
-Anther_length_w_genes=inner_join(ANTHER5,s3) # 3040 genes and 273 cells, too many
+Anther_length_w_genes=inner_join(ANTHER6,s3) # 3040 genes and 144 cells
+
+
 
 #Remove gene names 
 Anther_length_w_genes$gene=NULL
 
+vst_cor<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
+pheatmap(vst_cor,border_color=NA,labels_row = FALSE,labels_col = F)
 
-vst_cor2 <- as.matrix(cor(Anther_length_w_genes, method="spearman"))
-pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
-
-#
- #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
- variance2000 = read.table("2000genE_s3.txt", header= T)
-
- Variance2000transcripts=right_join(rna7,variance2000, "gene")
-
- #Trying the PCA with prcomp
- #remove gene title
- rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
- PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
- summary(PCA)
-
-
+pheatmap
 ```
  
 
