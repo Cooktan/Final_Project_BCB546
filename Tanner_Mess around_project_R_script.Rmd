@@ -23,7 +23,6 @@ suppressPackageStartupMessages(library("ggfortify"))
 
 
 
-
 ```
 
 ```{r}
@@ -42,7 +41,9 @@ rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
 
+
 qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
 
 
 qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
@@ -227,6 +228,7 @@ Fig5 c e
 
 ##Tanner 2 a c d
 
+
  ```{r include=FALSE}
  library("princurve")
  install.packages('PRcurve')
@@ -250,6 +252,7 @@ Fig5 c e
 
  Anther_size = read.table("Updated_S1.txt", header= T)
 
+
 ```{r include=FALSE}
 library(ggplot2)
 library("princurve")
@@ -261,12 +264,12 @@ library(pheatmap)
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
+
  ```{r include=FALSE}
+
  library("princurve")
  install.packages('PRcurve')
- suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
  suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
- suppressWarnings(suppressPackageStartupMessages(library(scran)))
  suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
  if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -293,8 +296,7 @@ library(pheatmap)
 
  Anther_size = read.table("Updated_S1.txt", header= T)
 
-
-#Transform data to merge files to use only 2000 genes
+####Transform data to merge files to use only 2000 genes
 rna_final_Tanner= as.data.frame(t(rna_final)) 
 s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
 
@@ -302,13 +304,13 @@ s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
 
-
 #Merge Files
 Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined table of all fig s3, order by variance and then slice 2000
 
 y= Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
   select(1:258) %>% 
   top_n(2000)
+
 
 
  Anther_size1 = read.csv("Updated_S1.csv", header= T)
@@ -364,6 +366,8 @@ y=(y[1:2000,])
 
 
 
+
+ 
 #Remove gene id column
 y$gene=NULL
 
@@ -380,7 +384,6 @@ plot(PCA2)
 names(PCA2)
 
 
-
 #PCA 10 as a matrix while selecting the X values from the PCA
 PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
@@ -389,6 +392,8 @@ I=principal_curve(PCAX)
 print(I)
 #Principal Curve
 plot(I)
+plot(I$lambda)
+plot(PCA2$x) # any of the PCA names can be called here (where x is)
 
 #PC1vsPC2 graph
 
@@ -398,36 +403,30 @@ J=PCA2$x %>%
   theme_bw(base_size=32)
 J
 
-names(I)
 
-##Allows us to see the variable in the PCA result
-# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
+ # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
 
 
-## Heat map...
+
+### Heat map...
 #https://jokergoo.github.io/ComplexHeatmap-reference/book/
 y
 y$gene<-NULL
-vst_cor <- as.matrix(cor(y, method="spearman"))
+vst_cor <- as.matrix(cor(y, method="spearman")) ## 2000 genes 144 Cells
 
 
 
 pheatmap(vst_cor,border_color=NA,labels_row = FALSE, labels_col = F)
 
-## Bioconducter
 
-library(scater)
-ANTHER5_MAT=as.vector(ANTHER5)
-by.cluster <- aggregateAcrossCells(RNA, ids=colLabels(ANTHER5_MAT))
-centroids <- reducedDim(by.cluster, "PCA")
 
 ######
 
-## Heatmap by with data sorted with 
-
+## Heatmap 
+#Sort by Anther size
 ANTHER1=read.csv("with_anther_size", header=T)
 
-#Sort by Anther size
+
 ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
 ANTHER3=t(ANTHER2)
 
@@ -463,6 +462,7 @@ pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
  summary(PCA)
  plot(PCA)
 
+
  ##Allows us to see the variable in the PCA result
  # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
  names(PCA)
@@ -493,6 +493,7 @@ pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
 
 
 pheatmap
+
 
 ```
 
@@ -585,7 +586,7 @@ library(dplyr)
 
 ls()
 
-=======
+
  ####
  library(stringr)
  library(dplyr)
