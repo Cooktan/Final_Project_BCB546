@@ -221,6 +221,7 @@ library("princurve")
 library(dplyr)
 library(data.table)
 library(pheatmap)
+
 #Pseudotime
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
@@ -232,18 +233,18 @@ s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
 
+
 #Merge Files
 Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined table of all fig s3, order by variance and then slice 2000
 
 y= Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
   select(1:258) %>% 
-  top_n(1999)
+  top_n(2000)
 
-rna_final
 
 y=(y[1:2000,])
 
-dim(s3)
+
 #Remove gene id column
 y$gene=NULL
 
@@ -265,14 +266,11 @@ names(PCA2)
 PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
 
-
-PCA2$x [,1:10]
-
 I=principal_curve(PCAX)
 print(I)
+#Principal Curve
 plot(I)
 
-names(I)
 #PC1vsPC2 graph
 
 J=PCA2$x %>% 
@@ -281,29 +279,59 @@ J=PCA2$x %>%
   theme_bw(base_size=32)
 J
 
-
-#Principal Curve
-?plot
-plot(I)
-plot(I$lambda)
-plot(PCA2$center) # any of the PCA names can be called here (where x is)
-
-PCA2$x [,1:10]
-
-str(PCA2)
+names(I)
 
 ##Allows us to see the variable in the PCA result
 # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
 
 
 ## Heat map...
-Variance2000transcriptsRJ=inner_join(rna_final_Tanner,s3 )
-Variance2000transcriptsRJ$gene<-NULL
-vst_cor <- as.matrix(cor(Variance2000transcriptsRJ, method="spearman"))
+#https://jokergoo.github.io/ComplexHeatmap-reference/book/
+y
+y$gene<-NULL
+vst_cor <- as.matrix(cor(y, method="spearman"))
 
-Variance2000transcriptsRJ[is.na(Variance2000transcriptsRJ)] = 0
 
-pheatmap(vst_cor,border_color=NA)
+
+pheatmap(vst_cor,border_color=NA,labels_row = FALSE, labels_col = F)
+
+## Bioconducter
+
+library(scater)
+ANTHER5_MAT=as.vector(ANTHER5)
+by.cluster <- aggregateAcrossCells(RNA, ids=colLabels(ANTHER5_MAT))
+centroids <- reducedDim(by.cluster, "PCA")
+
+######
+
+## Heatmap by with data sorted with 
+
+ANTHER1=read.csv("with_anther_size", header=T)
+
+#Sort by Anther size
+ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
+ANTHER3=t(ANTHER2)
+
+ANTHER4=ANTHER3[-c(1,2,3,4),]
+ANTHER5=as.data.frame(ANTHER4)
+
+#Add row names as a column for sorting
+library(data.table)
+
+setDT(ANTHER5, keep.rownames = "gene")[]
+
+#Anther length with 3040 genes
+Anther_length_w_genes=inner_join(ANTHER5,s3) # 3040 genes and 273 cells, too many
+
+#Remove gene names 
+Anther_length_w_genes$gene=NULL
+
+
+vst_cor2 <- as.matrix(cor(Anther_length_w_genes, method="spearman"))
+pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
+
+
+pheatmap
 
 ```
 
