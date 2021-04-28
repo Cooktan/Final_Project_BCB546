@@ -229,31 +229,23 @@ Fig5 c e
 ##Tanner 2 a c d
 
 
- ```{r include=FALSE}
- library("princurve")
- install.packages('PRcurve')
- suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
- suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
- suppressWarnings(suppressPackageStartupMessages(library(scran)))
- suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
+```{r}
+library(ggplot2)
+library("princurve")
+library(dplyr)
+library(data.table)
+library(pheatmap)
 
- if (!requireNamespace("BiocManager", quietly = TRUE))
-     install.packages("BiocManager")
- library(slingshot)
-
- library(monocle)
- library("princurve")
- library(dplyr)
-
- ##PCA for pairwise comparison of replicates
-
- library(readr)
- library(tidyverse)
-
- Anther_size = read.table("Updated_S1.txt", header= T)
+```
 
 
-```{r include=FALSE}
+#Pseudotime
+
+#Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
+
+
+
+```{r}
 library(ggplot2)
 library("princurve")
 library(dplyr)
@@ -264,9 +256,7 @@ library(pheatmap)
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
-
- ```{r include=FALSE}
-
+ 
  library("princurve")
  install.packages('PRcurve')
  suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
@@ -282,24 +272,14 @@ library(pheatmap)
 
  ##PCA for pairwise comparison of replicates
 
-
  library(readr)
  library(tidyverse)
-
-
-
- Anther_size1 = read.csv("Updated_S1.csv", header= T)
-
- rna4a= as.integer(rna4$cell)
-
- Anther_sort=right_join(rna4, Anther_size, "cell")
 
  Anther_size = read.table("Updated_S1.txt", header= T)
 
 ####Transform data to merge files to use only 2000 genes
 rna_final_Tanner= as.data.frame(t(rna_final)) 
 s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
-
 
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
@@ -310,62 +290,6 @@ Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined tabl
 y= Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
   select(1:258) %>% 
   top_n(2000)
-
-
-
- Anther_size1 = read.csv("Updated_S1.csv", header= T)
-
- rna4a= as.integer(rna4$cell)
-
-
-#
- #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
- variance2000 = read.table("2000genE_s3.txt", header= T)
-
- Variance2000transcripts=right_join(rna7,variance2000, "gene")
-
- #Trying the PCA with prcomp
- #remove gene title
- rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
- PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
- summary(PCA)
- plot(PCA)
-
- ##Allows us to see the variable in the PCA result
- # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
- names(PCA)
-
- PCA[1:10]
-
- #PCA 10 as a matrix while selecting the X values from the PCA
- PCAX= as.matrix(PCA$x, (c[,1:10]))
- PCAX
-
- #Correct way to only use PC10? I don't think so but I am unsure
-
- I=principal_curve(PCAX, smoother="smooth.spline")
- print(I)
-
- J=PCA$x %>%
-   as.data.frame %>%
-   ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
-   theme_bw(base_size=32)
- J
-
- autoplot(PCA)
-
- plot(I)
- plot(I$lambda)
- plot(PCA$x) # any of the PCA names can be called here (where x is)
-
- Anther_sort=right_join(rna4, Anther_size, "cell")
-
-
-
-y=(y[1:2000,])
-
-
-
 
  
 #Remove gene id column
@@ -420,6 +344,52 @@ pheatmap(vst_cor,border_color=NA,labels_row = FALSE, labels_col = F)
 
 
 
+######
+
+## Heatmap 
+#Sort by Anther size
+ANTHER1=read.csv("with_anther_size", header=T)
+
+
+ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
+ANTHER3=t(ANTHER2)
+
+ANTHER4=ANTHER3[-c(1,2,3,4),]
+ANTHER5=as.data.frame(ANTHER4)
+
+#Add row names as a column for sorting
+library(data.table)
+
+setDT(ANTHER5, keep.rownames = "gene")[]
+
+#Anther length with 3040 genes
+Anther_length_w_genes=inner_join(ANTHER5,s3) # 3040 genes and 273 cells, too many
+
+#Remove gene names 
+Anther_length_w_genes$gene=NULL
+
+
+vst_cor2 <- as.matrix(cor(Anther_length_w_genes, method="spearman"))
+pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
+
+#
+ #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
+ variance2000 = read.table("2000genE_s3.txt", header= T)
+
+ Variance2000transcripts=right_join(rna7,variance2000, "gene")
+
+ #Trying the PCA with prcomp
+ #remove gene title
+ rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
+ PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
+ summary(PCA)
+
+
+```
+ 
+
+
+```{r}
 ######
 
 ## Heatmap 
@@ -494,8 +464,9 @@ pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
 
 pheatmap
 
-
 ```
+
+
 
 
 
@@ -644,10 +615,7 @@ ls()
 
  #Using Monocle
 
-```
-
-
- pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
+  pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
                               R2 = pca_data$count[which(pca_data$rep == 2)])
 
  sum(pca_data$rep == 1)
@@ -660,11 +628,6 @@ sum(pca_data$rep == 2)
 ```
 
 
-```{r include=FALSE}
-
- #Using Monocle
-
-```
 
 ##Yuru 4a,c,5c
 ```{r}
