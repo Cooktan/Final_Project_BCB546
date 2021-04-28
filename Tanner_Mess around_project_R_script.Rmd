@@ -10,10 +10,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #Dependencies
-library("tidyverse")
-library("factoextra")
-library("FactoMineR")
-
+suppressPackageStartupMessages(library("tidyverse"))
+suppressPackageStartupMessages(library("factoextra"))
+suppressPackageStartupMessages(library("FactoMineR"))
+suppressPackageStartupMessages(library("ggfortify"))
 
 ```
 
@@ -21,10 +21,10 @@ library("FactoMineR")
 #Set working directory
 setwd('.')
 getwd()
-list.files()
+#list.files()
 ```
 
-Reading data
+#Reading data
 
 ```{r}
 # Counts
@@ -32,7 +32,8 @@ rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx')
+qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
 
@@ -49,12 +50,12 @@ head(qc)
 #get into long format
 rna1 <- pivot_longer(rna, cols = starts_with('Cell'))
 ```
+#rename the columns
+#select the columns
 
 
 ```{r}
 #separate 'name' into 4 columns, 
-#rename the columns
-#select the columns
 
 rna3 <- separate(rna1, name, into = paste0("y",1:4), sep = " ") %>% 
   select(!c(y1, y3)) %>% rename(c('cell' = y2, 'rep'= y4, 'count' = value))
@@ -70,15 +71,6 @@ head(rna4)
 
 paste0("Total number of cells after Quality Control: ", length(unique(as.numeric(rna4$cell))))
 ```
-
-
-``` {r}
-##convert cell & rep into numeric & Count unique cells.
-n.cells2 <- unique(as.numeric(rna4$cell)) #now we have 144 cells
-
-#rna4 contains all cells that passed QC and were used in the analysis
-```
-
 
 ``` {r}
 
@@ -118,7 +110,7 @@ rna9[1:5, 1:4]
 ```
 
 ```{r}
-# transpose data frame so cells are row and genes are columns
+# transpose data frame so cells are rows and genes are columns
 rna9_t <- as.data.frame(t(as.matrix(rna9)))
 ```
 
@@ -155,10 +147,11 @@ rna9_ft %>%
   group_by(gene) %>% dplyr::summarise(m = sum(c_across(2:length(rna9_ft)-1))) %>%  
   filter(m > 100) %>% select(gene) -> exp_genes
 
-rna_ftf <- as.tibble(rna9_ft[rna9_ft$gene %in% exp_genes$gene,])
+rna_ftf <- as_tibble(rna9_ft[rna9_ft$gene %in% exp_genes$gene,])
 dim(rna_ftf)
 ```
-Filtering out genes differentially expressed in specific stages
+
+#Filtering out genes differentially expressed in specific stages
 ```{r}
 rna_ftfc <- rna_ftf %>% filter(!gene %in% deg$gene)
 ```
@@ -168,7 +161,7 @@ Normalization
 
 # Step 1: divided each individual count by the total counts per cell, and multiply by 1000000 
 
-rna_norm <- as.tibble(rna_ftfc$gene) # tibble ngenes x 1 for starting fillling with normalized data
+rna_norm <- as_tibble(rna_ftfc$gene) # tibble ngenes x 1 for starting fillling with normalized data
 
 for (i in 2:length(rna_ftfc)) {
   a <- (rna_ftfc[,i]/sum(rna_ftfc[,i]))*1000000
@@ -199,6 +192,8 @@ PCA$x %>%
   ggplot(aes(x = PC1, y = PC2)) + 
   geom_point()
 
+ggsave('pca2.jpeg')
+
 ```
 
 #Figures assignment
@@ -215,129 +210,128 @@ Fig5 c e
 
 
 ##Tanner 2 a c d
-```{r include=FALSE}
-library("princurve")
-install.packages('PRcurve')
-suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
-suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
-suppressWarnings(suppressPackageStartupMessages(library(scran)))
-suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
+ ```{r include=FALSE}
+ library("princurve")
+ install.packages('PRcurve')
+ suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
+ suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
+ suppressWarnings(suppressPackageStartupMessages(library(scran)))
+ suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-library(slingshot)
+ if (!requireNamespace("BiocManager", quietly = TRUE))
+     install.packages("BiocManager")
+ library(slingshot)
 
-library(monocle)
-library("princurve")
-library(dplyr)
+ library(monocle)
+ library("princurve")
+ library(dplyr)
 
-##PCA for pairwise comparison of replicates
- 
-library(readr)
-library(tidyverse)
+ ##PCA for pairwise comparison of replicates
 
-Anther_size = read.table("Updated_S1.txt", header= T)
+ library(readr)
+ library(tidyverse)
 
-
-
-Anther_size1 = read.csv("Updated_S1.csv", header= T)
-
-rna4a= as.integer(rna4$cell)
-
-Anther_sort=right_join(rna4, Anther_size, "cell")
+ Anther_size = read.table("Updated_S1.txt", header= T)
 
 
 
+ Anther_size1 = read.csv("Updated_S1.csv", header= T)
 
-#Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
-variance2000 = read.table("2000genE_s3.txt", header= T)
+ rna4a= as.integer(rna4$cell)
 
-Variance2000transcripts=right_join(rna7,variance2000, "gene")
-
-#Trying the PCA with prcomp
-#remove gene title
-rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
-PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
-summary(PCA)
-plot(PCA)
-
-##Allows us to see the variable in the PCA result
-# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
-names(PCA)
-
-PCA[1:10]
-
-#PCA 10 as a matrix while selecting the X values from the PCA
-PCAX= as.matrix(PCA$x, (c[,1:10]))
-PCAX
-
-#Correct way to only use PC10? I don't think so but I am unsure
-
-I=principal_curve(PCAX, smoother="smooth.spline")
-print(I)
-
-J=PCA$x %>% 
-  as.data.frame %>%
-  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
-  theme_bw(base_size=32)
-J
-
-autoplot(PCA)
-
-plot(I)
-plot(I$lambda)
-plot(PCA$x) # any of the PCA names can be called here (where x is)
+ Anther_sort=right_join(rna4, Anther_size, "cell")
 
 
+
+#
+ #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
+ variance2000 = read.table("2000genE_s3.txt", header= T)
+
+ Variance2000transcripts=right_join(rna7,variance2000, "gene")
+
+ #Trying the PCA with prcomp
+ #remove gene title
+ rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
+ PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
+ summary(PCA)
+ plot(PCA)
+
+ ##Allows us to see the variable in the PCA result
+ # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
+ names(PCA)
+
+ PCA[1:10]
+
+ #PCA 10 as a matrix while selecting the X values from the PCA
+ PCAX= as.matrix(PCA$x, (c[,1:10]))
+ PCAX
+
+ #Correct way to only use PC10? I don't think so but I am unsure
+
+ I=principal_curve(PCAX, smoother="smooth.spline")
+ print(I)
+
+ J=PCA$x %>%
+   as.data.frame %>%
+   ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
+   theme_bw(base_size=32)
+ J
+
+ autoplot(PCA)
+
+ plot(I)
+ plot(I$lambda)
+ plot(PCA$x) # any of the PCA names can be called here (where x is)
 
 
 
 
 
 
-####
-library(stringr)
-library(dplyr)
-
-ls()
-rm(list=setdiff(ls(), "rna4"))
-
-check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n()) 
-head(check_reps)
-unique(check_reps$n)
-t
-str(rna4)
-
-check_reps <- check_reps %>% filter(n == 1)
 
 
-to_remove <- paste0(check_reps$gene, check_reps$cell)
-to_remove[1:5]
+ ####
+ library(stringr)
+ library(dplyr)
 
-rna4$index <- paste0(rna4$gene, rna4$cell)
+ ls()
+ rm(list=setdiff(ls(), "rna4"))
 
-pca_data <- rna4[-match(to_remove,rna4$index),]
+ check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
+ head(check_reps)
+ unique(check_reps$n)
+ t
+ str(rna4)
 
-dim(pca_data)
-dim(rna4)
-head(pca_data)
-
-
-
-check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n = n()) 
-check_reps[which(check_reps$n != 2),]
-
-
-pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
-                             R2 = pca_data$count[which(pca_data$rep == 2)])
+ check_reps <- check_reps %>% filter(n == 1)
 
 
-sum(pca_data$rep == 1)
-sum(pca_data$rep == 2)
+ to_remove <- paste0(check_reps$gene, check_reps$cell)
+ to_remove[1:5]
 
-#Using Monocle
+ rna4$index <- paste0(rna4$gene, rna4$cell)
+
+ pca_data <- rna4[-match(to_remove,rna4$index),]
+
+ dim(pca_data)
+ dim(rna4)
+ head(pca_data)
 
 
+
+ check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n  n())
+ check_reps[which(check_reps$n != 2),]
+
+
+ pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
+                              R2 = pca_data$count[which(pca_data$rep == 2)])
+
+ sum(pca_data$rep == 1)
+ sum(pca_data$rep == 2)
+
+ #Using Monocle
+
+```
 ##Yuru 4a,c,5c
 ```{r}
 
@@ -345,12 +339,83 @@ sum(pca_data$rep == 2)
 
 ##Chiteri 1 c 2 b 5e
 ```{r}
+# Quality control: PASS/FAIL
+table1 <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
+#rename the columns..replace spaces with underscore and lower case
+table1.1 <- table1 %>%  
+  select_all(~gsub("\\s", "_", .)) %>% 
+  select_all(tolower)
+
+#rename anthersize column name
+colnames(table1.1)[3] <- 'anther_size_mm'
+colnames(table1.1)[1] <- 'cell'
+
+#filter only cells that passed
+
+table1.2 <- table1.1 %>%  filter(quality_control=="PASS") %>%  select(cell, anther_size_mm)
+
+#Join two columns cell and rep and go wider
+
+rna4_wide <- rna4 %>% pivot_wider(names_from = gene, values_from = count)
+
+rna4_anther <- merge(rna4_wide, table1.2, by='cell') %>% select(cell, rep, anther_size_mm, everything()) %>% arrange(as.numeric(cell))
+
+rna4_replicated <- rna4_anther %>% group_by(cell) %>% filter(n()==2) %>%  ungroup() 
+
+
+#make anther_size_mm for grouping purposes
+rna4_replicated$anther_size_mm <- as.character(rna4_replicated$anther_size_mm)
+
+#filter whose sum across samples is > 100
+rna4_filtered <- rna4_replicated[4:ncol(rna4_replicated)][, apply(rna4_replicated[4:ncol(rna4_replicated)],2,sum) > 100]
+
+
+#we get 256 obs, 12912 genes, 10 shy of 12902 from the paper
+
+#introduce the cell, rep, anther_size
+rna4_x <- cbind(rna4_replicated[1:3], rna4_filtered )
+
+#filter the 375 
+# Deferentially expressed genes during specific stages
+rna4_x2 <- rna4_x[, !names(rna4_x) %in% deg$gene] 
+#we get 12544 against 12527 in the paper. We have 17 more??
+
+
+#make anther_size_mm for grouping purposes
+rna4_x2$anther_size_mm <- as.numeric(rna4_x2$anther_size_mm)
+
+##normalize (uses columns)
+#Uses row sums
+rna4_x3 <- apply(rna4_x2[4:ncol(rna4_x2)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+rna4_log3 <- as.data.frame(t(rna4_x3))
+
+#combine
+rna4_log3 <- cbind(rna4_x2[,1:3], rna4_log3)
+
+PCA_256 = prcomp(rna4_log3[, -c(1:3)], center=TRUE, scale.=FALSE)
+summary(PCA_256)
+
+autoplot(PCA_256, data=rna4_x2, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw() 
+
+ggsave('pca2.png')
 
 ```
+```{r}
+##kmeans with cycle
+#kmeans plot
+set.seed(20)
+#autoplot(kmeans(rna4_log3[, -c(1:3)], 6), data=rna4_x2 )
+
+#Producing error currently
+ggsave('cell_cycle_cluster.png')
+
+```
+
 
 ##Juan 4b d e
 ```{r}
 
 ```
-
 
