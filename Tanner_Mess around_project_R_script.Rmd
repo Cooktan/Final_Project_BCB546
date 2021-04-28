@@ -10,17 +10,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #Dependencies
-<<<<<<< HEAD
+
 library("tidyverse")
 library("factoextra")
 library("FactoMineR")
 library("readxl")
-=======
+
 suppressPackageStartupMessages(library("tidyverse"))
 suppressPackageStartupMessages(library("factoextra"))
 suppressPackageStartupMessages(library("FactoMineR"))
 suppressPackageStartupMessages(library("ggfortify"))
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
+
+
 
 ```
 
@@ -39,12 +40,17 @@ rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
-<<<<<<< HEAD
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
-=======
+
+
 qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
 
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
+
+
+qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
+
+qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
+
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
 
@@ -221,8 +227,25 @@ Fig5 c e
 
 
 ##Tanner 2 a c d
-<<<<<<< HEAD
-```{r include=FALSE}
+
+
+```{r}
+library(ggplot2)
+library("princurve")
+library(dplyr)
+library(data.table)
+library(pheatmap)
+
+```
+
+
+#Pseudotime
+
+#Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
+
+
+
+```{r}
 library(ggplot2)
 library("princurve")
 library(dplyr)
@@ -232,13 +255,11 @@ library(pheatmap)
 #Pseudotime
 
 #Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
-=======
- ```{r include=FALSE}
+
+ 
  library("princurve")
  install.packages('PRcurve')
- suppressWarnings(suppressPackageStartupMessages(library(ggthemes)))
  suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
- suppressWarnings(suppressPackageStartupMessages(library(scran)))
  suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
  if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -255,16 +276,13 @@ library(pheatmap)
  library(tidyverse)
 
  Anther_size = read.table("Updated_S1.txt", header= T)
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
 
-#Transform data to merge files to use only 2000 genes
+####Transform data to merge files to use only 2000 genes
 rna_final_Tanner= as.data.frame(t(rna_final)) 
 s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
 
-<<<<<<< HEAD
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
-
 
 #Merge Files
 Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined table of all fig s3, order by variance and then slice 2000
@@ -272,20 +290,8 @@ Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined tabl
 y= Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
   select(1:258) %>% 
   top_n(2000)
-=======
 
- Anther_size1 = read.csv("Updated_S1.csv", header= T)
-
- rna4a= as.integer(rna4$cell)
-
- Anther_sort=right_join(rna4, Anther_size, "cell")
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
-
-
-y=(y[1:2000,])
-
-<<<<<<< HEAD
-
+ 
 #Remove gene id column
 y$gene=NULL
 
@@ -302,7 +308,6 @@ plot(PCA2)
 names(PCA2)
 
 
-
 #PCA 10 as a matrix while selecting the X values from the PCA
 PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
@@ -311,6 +316,8 @@ I=principal_curve(PCAX)
 print(I)
 #Principal Curve
 plot(I)
+plot(I$lambda)
+plot(PCA2$x) # any of the PCA names can be called here (where x is)
 
 #PC1vsPC2 graph
 
@@ -320,36 +327,30 @@ J=PCA2$x %>%
   theme_bw(base_size=32)
 J
 
-names(I)
 
-##Allows us to see the variable in the PCA result
-# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
+ # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
 
 
-## Heat map...
+
+### Heat map...
 #https://jokergoo.github.io/ComplexHeatmap-reference/book/
 y
 y$gene<-NULL
-vst_cor <- as.matrix(cor(y, method="spearman"))
+vst_cor <- as.matrix(cor(y, method="spearman")) ## 2000 genes 144 Cells
 
 
 
 pheatmap(vst_cor,border_color=NA,labels_row = FALSE, labels_col = F)
 
-## Bioconducter
 
-library(scater)
-ANTHER5_MAT=as.vector(ANTHER5)
-by.cluster <- aggregateAcrossCells(RNA, ids=colLabels(ANTHER5_MAT))
-centroids <- reducedDim(by.cluster, "PCA")
 
 ######
 
-## Heatmap by with data sorted with 
-
+## Heatmap 
+#Sort by Anther size
 ANTHER1=read.csv("with_anther_size", header=T)
 
-#Sort by Anther size
+
 ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
 ANTHER3=t(ANTHER2)
 
@@ -370,7 +371,7 @@ Anther_length_w_genes$gene=NULL
 
 vst_cor2 <- as.matrix(cor(Anther_length_w_genes, method="spearman"))
 pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
-=======
+
 #
  #Identify 2000 genes with highest variance and use for pseudotime. From fig. S3
  variance2000 = read.table("2000genE_s3.txt", header= T)
@@ -382,40 +383,15 @@ pheatmap(vst_cor2,border_color=NA,labels_row = FALSE, labels_col = F)
  rna10 <- Variance2000transcripts %>% remove_rownames %>% column_to_rownames(var = "gene")
  PCA= prcomp(rna10[, c(2:272)], center=TRUE, scale.=TRUE)
  summary(PCA)
- plot(PCA)
 
- ##Allows us to see the variable in the PCA result
- # "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
- names(PCA)
-
- PCA[1:10]
-
- #PCA 10 as a matrix while selecting the X values from the PCA
- PCAX= as.matrix(PCA$x, (c[,1:10]))
- PCAX
-
- #Correct way to only use PC10? I don't think so but I am unsure
-
- I=principal_curve(PCAX, smoother="smooth.spline")
- print(I)
-
- J=PCA$x %>%
-   as.data.frame %>%
-   ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
-   theme_bw(base_size=32)
- J
-
- autoplot(PCA)
-
- plot(I)
- plot(I$lambda)
- plot(PCA$x) # any of the PCA names can be called here (where x is)
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
-
-
-pheatmap
 
 ```
+ 
+
+
+
+
+
 
 
 
@@ -455,9 +431,25 @@ rna7T <- rnaT %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_f
 dim(rna7T)
 
 
-<<<<<<< HEAD
+
 
 ##################################
+
+
+ ####
+ library(stringr)
+ library(dplyr)
+
+ ls()
+ rm(list=setdiff(ls(), "rna4"))
+
+ check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
+ head(check_reps)
+ unique(check_reps$n)
+ t
+ str(rna4)
+
+ check_reps <- check_reps %>% filter(n == 1)
 
 ####
 #MAtheus help library(stringr)
@@ -490,22 +482,20 @@ library(dplyr)
 
 ls()
 
-=======
+
  ####
  library(stringr)
  library(dplyr)
 
  ls()
  rm(list=setdiff(ls(), "rna4"))
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
+
 
  check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
  head(check_reps)
  unique(check_reps$n)
  t
  str(rna4)
-
- check_reps <- check_reps %>% filter(n == 1)
 
 
  to_remove <- paste0(check_reps$gene, check_reps$cell)
@@ -519,11 +509,28 @@ ls()
  dim(rna4)
  head(pca_data)
 
+ check_reps <- check_reps %>% filter(n == 1)
+
+
+ to_remove <- paste0(check_reps$gene, check_reps$cell)
+ to_remove[1:5]
+
+ rna4$index <- paste0(rna4$gene, rna4$cell)
+
+ pca_data <- rna4[-match(to_remove,rna4$index),]
+
+
+ dim(pca_data)
+ dim(rna4)
+ head(pca_data)
 
 
  check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n  n())
  check_reps[which(check_reps$n != 2),]
 
+
+ check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n  n())
+ check_reps[which(check_reps$n != 2),]
 
  pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
                               R2 = pca_data$count[which(pca_data$rep == 2)])
@@ -531,7 +538,14 @@ ls()
  sum(pca_data$rep == 1)
  sum(pca_data$rep == 2)
 
-<<<<<<< HEAD
+ #Using Monocle
+
+  pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
+                              R2 = pca_data$count[which(pca_data$rep == 2)])
+
+ sum(pca_data$rep == 1)
+ sum(pca_data$rep == 2)
+
 sum(pca_data$rep == 1)
 sum(pca_data$rep == 2)
 ########################################################################################################
@@ -539,12 +553,7 @@ sum(pca_data$rep == 2)
 ```
 
 
-```{r include=FALSE}
-=======
- #Using Monocle
 
-```
->>>>>>> f70304f5f81e1813efcc6d712571f4e8ca3c1fb4
 ##Yuru 4a,c,5c
 ```{r}
 
@@ -614,6 +623,19 @@ autoplot(PCA_256, data=rna4_x2, colour= 'anther_size_mm') + geom_line(aes(group 
 
 ggsave('pca2.png')
 
+
+
+```
+```{r}
+##kmeans with cycle
+#kmeans plot
+set.seed(20)
+#autoplot(kmeans(rna4_log3[, -c(1:3)], 6), data=rna4_x2 )
+
+#Producing error currently
+ggsave('cell_cycle_cluster.png')
+
+
 ```
 ```{r}
 ##kmeans with cycle
@@ -625,6 +647,7 @@ set.seed(20)
 ggsave('cell_cycle_cluster.png')
 
 ```
+
 
 
 ##Juan 4b d e
