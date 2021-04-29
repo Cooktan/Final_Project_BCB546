@@ -12,14 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 #Dependencies
 
 library("tidyverse")
-library("factoextra")
-library("FactoMineR")
-library("readxl")
-
-suppressPackageStartupMessages(library("tidyverse"))
-suppressPackageStartupMessages(library("factoextra"))
-suppressPackageStartupMessages(library("FactoMineR"))
-suppressPackageStartupMessages(library("ggfortify"))
 
 
 
@@ -228,28 +220,13 @@ Fig5 c e
 ##Tanner 2 a c d
 
 
-```{r}
-library(ggplot2)
-library("princurve")
-library(dplyr)
-library(data.table)
-library(pheatmap)
-
-```
-
 
 
 ```{r}
 #Dependencies
-library(ggplot2)
 library("princurve")
-library(dplyr)
 library(data.table)
 library(pheatmap)
-
-library(readr)
-library(tidyverse)
-library(ggplot2)
 
 ```
 
@@ -311,6 +288,8 @@ df1 %>%
   geom_smooth(data = df2, aes(x = PC1, y = PC2)) +
   theme(legend.position = "none")+xlim(-20,30)
 
+names(I)
+
 ggsave('Pseudotime_PCA_overlay.jpeg')
 ```
 
@@ -348,9 +327,9 @@ Anther_length_w_genes$gene=NULL
 #Make heatmap ordered by anther length
 
 vst_cor<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
-pheatmap(vst_cor,border_color=NA,labels_row = FALSE,labels_col = F)
 
-ggsave('Heatmap.jpeg')
+pheatmap(vst_cor,border_color="white",labels_col =NA, labels_row = NA, treeheight_row = 0, treeheight_col = 0, cluster_rows = 0)
+
 
 
 
