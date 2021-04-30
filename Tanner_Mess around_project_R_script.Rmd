@@ -17,37 +17,31 @@ library("tidyverse")
 
 ```
 
-```{r}
-#Set working directory
-setwd('.')
-getwd()
-#list.files()
-```
 
 #Reading data
 
 ```{r}
 # Counts
-rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
+rna <- read_csv('./Data/GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
 
 
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
 
 
 
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
+qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
 
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
 
 
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
 
 # Deferentially expressed genes during specific stages
-deg <- readxl::read_excel('./aav6428_Nelms_Table-S2.xlsx')[,1:2]
+deg <- readxl::read_excel('./Data/aav6428_Nelms_Table-S2.xlsx')[,1:2]
 names(deg) <- c('gene', 'phase')
 deg <- deg %>% filter(phase != "G1") %>% select(gene)
 
@@ -237,11 +231,11 @@ library(pheatmap)
 
 ##Take Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
 
- Anther_size = read.table("Updated_S1.txt", header= T)
+ Anther_size = read.table("./Data/Updated_S1.txt", header= T)
 
 #Transform data to merge files to use only 2000 genes
 rna_final_Tanner= as.data.frame(t(rna_final)) 
-s3= read.csv("aav6428_Nelms_Table-S3.csv", header=T)
+s3= read.csv(".?Data/aav6428_Nelms_Table-S3.csv", header=T)
 
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
@@ -279,7 +273,7 @@ I=principal_curve(PCAX)
 plot(I$s, xlim=c(-20,10))
 
 #Overlay principle curve for PCA in fig.1. Makes Fig. 2A
-df1=PCA$x
+df1=as.data.frame(PCA$x)
 df2=as.data.frame(I$s)
 
 df1 %>% 
@@ -288,7 +282,6 @@ df1 %>%
   geom_smooth(data = df2, aes(x = PC1, y = PC2)) +
   theme(legend.position = "none")+xlim(-20,30)
 
-names(I)
 
 ggsave('Pseudotime_PCA_overlay.jpeg')
 ```
@@ -298,7 +291,7 @@ ggsave('Pseudotime_PCA_overlay.jpeg')
 #### Heatmap  Fig. 2
 #Sort by Anther size
 
-ANTHER1=read.csv("with_anther_size", header=T)
+ANTHER1=read.csv("./Data/with_anther_size", header=T)
 
 
 ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
@@ -325,7 +318,9 @@ Anther_length_w_genes=inner_join(ANTHER6,s3) # 3040 genes and 144 cells
 Anther_length_w_genes$gene=NULL
 
 #Make heatmap ordered by anther length
+Anther_length_w_genes1=(t(Anther_length_w_genes))
 
+<<<<<<< HEAD
 vst_cor<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
 
 <<<<<<< HEAD
@@ -444,7 +439,11 @@ ls()
 pheatmap(vst_cor,border_color="white",labels_col =NA, labels_row = NA, treeheight_row = 0, treeheight_col = 0, cluster_rows = 0)
 >>>>>>> 75ec95c1eddc6e756db7ffdb6de02d443eea7d92
 
+=======
+vst_cor<- as.matrix(cor(Anther_length_w_genes1, method="spearman"))
+>>>>>>> c026ff6d20ccd7a937457bd644d5964f952a9506
 
+pheatmap(vst_cor,border_color="white",labels_col =NA,labels_row = "3040 genes", treeheight_row = 0, treeheight_col = 0)
 
 
 
@@ -458,7 +457,7 @@ pheatmap(vst_cor,border_color="white",labels_col =NA, labels_row = NA, treeheigh
 ##Chiteri 1 c 2 b 5e
 ```{r}
 # Quality control: PASS/FAIL
-table1 <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+table1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
 
 #rename the columns..replace spaces with underscore and lower case
 table1.1 <- table1 %>%  
@@ -519,14 +518,23 @@ autoplot(PCA_256, data=rna4_x2, colour= 'anther_size_mm') + geom_line(aes(group 
 =======
 #size=8 Will make the dots better. Place before colour
 
+<<<<<<< HEAD
 autoplot(PCA_256, data=rna4_x2, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw()
 >>>>>>> 75ec95c1eddc6e756db7ffdb6de02d443eea7d92
+=======
+autoplot(PCA_256, data=rna4_x2, size=5, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw()
+>>>>>>> c026ff6d20ccd7a937457bd644d5964f952a9506
 
 ggsave('pca2.png')
 
 ```
 
 
+<<<<<<< HEAD
+=======
+
+```
+>>>>>>> c026ff6d20ccd7a937457bd644d5964f952a9506
 ```{r}
 ##kmeans with cycle
 #kmeans plot
