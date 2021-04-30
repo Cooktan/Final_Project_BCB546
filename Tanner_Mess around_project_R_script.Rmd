@@ -12,9 +12,15 @@ knitr::opts_chunk$set(echo = TRUE)
 #Dependencies
 
 library("tidyverse")
+library("factoextra")
+library("FactoMineR")
+library("readxl")
+
+
 library("ggfortify")
 library("FactoMineR")
 library("princurve")
+
 ```
 
 
@@ -28,13 +34,6 @@ rna <- rename(rna, gene = X1) #rename first column
 # Quality control: PASS/FAIL
 
 qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
-
-
-
-qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
-
-qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
-
 
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
@@ -268,9 +267,11 @@ PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
 
 I=principal_curve(PCAX)
+names(I)
 
 #Principal Curve
 plot(I$s, xlim=c(-20,10))
+I$s
 
 #Overlay principle curve for PCA in fig.1. Makes Fig. 2A
 df1=as.data.frame(PCA$x)
@@ -320,129 +321,13 @@ Anther_length_w_genes$gene=NULL
 #Make heatmap ordered by anther length
 Anther_length_w_genes1=(t(Anther_length_w_genes))
 
-##HEAD
-vst_cor<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
-
-## HEAD
-#REMOVE UNWANTED COLUMNS
-rnaT <- select(Anther_sorted, -c(5:6)) 
-
-rna7T <- rnaT %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
-
-dim(rna7T)
-
-
-
-
-##################################
-
-
- ####
- library(stringr)
- library(dplyr)
-
- ls()
- rm(list=setdiff(ls(), "rna4"))
-
- check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
- head(check_reps)
- unique(check_reps$n)
- t
- str(rna4)
-
- check_reps <- check_reps %>% filter(n == 1)
-
-####
-#MAtheus help library(stringr)
-library(dplyr)
-
-install.packages('LearnBayes')
-
-
-
-HHHHH <- rna4 %>% group_by(cell, rep) %>% filter( rep =="2") %>% droplevels()
-
-y= as.data.frame(HHHHH)
-x= as.data.frame(rna4)
-
-JoinHHHH= right_join(y, x, "cell")
-JJJJJ <- rna4 %>% select(rep) %>% filter( rep =="2")%>% droplevels()
-
-a= c(HHHHH)
-b=c(JJJJJ)
-
-df= data.frame(a,b)
-
-c
-#Using Monocle
-
-
-#########################
-#MAtheus help library(stringr)
-library(dplyr)
-
-ls()
-
-
- ####
- library(stringr)
- library(dplyr)
-
- ls()
- rm(list=setdiff(ls(), "rna4"))
-
-
- check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
- head(check_reps)
- unique(check_reps$n)
- t
- str(rna4)
-
-
- to_remove <- paste0(check_reps$gene, check_reps$cell)
- to_remove[1:5]
-
- rna4$index <- paste0(rna4$gene, rna4$cell)
-
- pca_data <- rna4[-match(to_remove,rna4$index),]
-
- dim(pca_data)
- dim(rna4)
- head(pca_data)
-
- check_reps <- check_reps %>% filter(n == 1)
-
-
- to_remove <- paste0(check_reps$gene, check_reps$cell)
- to_remove[1:5]
-
- rna4$index <- paste0(rna4$gene, rna4$cell)
-
- pca_data <- rna4[-match(to_remove,rna4$index),]
-
-
- dim(pca_data)
- dim(rna4)
- head(pca_data)
-
-
- check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n=  n())
- check_reps[which(check_reps$n != 2),]
-
-
- check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n=  n())
- check_reps[which(check_reps$n != 2),]
-
- pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
-                              R2 = pca_data$count[which(pca_data$rep == 2)])
-
-pheatmap(vst_cor,border_color="white",labels_col =NA, labels_row = NA, treeheight_row = 0, treeheight_col = 0, cluster_rows = 0)
 
 vst_cor<- as.matrix(cor(Anther_length_w_genes1, method="spearman"))
+vst_cor2<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
 
 
-pheatmap(vst_cor,border_color="white",labels_col =NA,labels_row = "3040 genes", treeheight_row = 0, treeheight_col = 0)
-
+pheatmap(vst_cor,border_color="white",labels_col =NA,labels_row = "3040 genes", treeheight_row = 0, treeheight_col = 0, cluster_rows = 2, cluster_cols = 2)
+pheatmap(vst_cor2,border_color="white",labels_col =NA, labels_row = NA, treeheight_row = 0, treeheight_col = 0, cluster_rows = 2, cluster_cols = 2)
 
 
 ```
