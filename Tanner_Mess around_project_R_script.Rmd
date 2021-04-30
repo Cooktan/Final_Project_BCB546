@@ -749,10 +749,12 @@ trps8 <- GSE121039_AR_scRNAseq_transcript_counts[ GSE121039_AR_scRNAseq_transcri
 
 #Attempting to Graph Marker Gene datasets with Pseudotime
 ```{r}
-M_Mark_Psu1 <- merge()#??
+##M_Mark_Psu1 <- merge()#??
 #How to merge data and plot on same graph?
-ggplot() +
-  geom_point(data = c(ago18a,I$s), aes(I$s,1), color = "blue")
+#Need Pseudotime calculation and how to merge files into dataset
+##ggplot() +
+  ##geom_point(data = c(ago18a,I$s), aes(I$s,1), color = "blue")
+#Can use Juans anther code on marker genes for similar result
 
 ```
 
@@ -790,4 +792,5 @@ Anther_length_w_M$gene=NULL
 #Heatmap the three genes
 vst_cor_M<- as.matrix(cor(Anther_length_w_M, method="spearman"))
 pheatmap(Anther_length_w_M,border_color=NA,labels_row = FALSE,labels_col = F)
+#Need to change scale of graph and add normalization to expression data
 ```
