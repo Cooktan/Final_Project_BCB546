@@ -12,8 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 #Dependencies
 
 library("tidyverse")
-
-
+library("factoextra")
+library("FactoMineR")
+library("readxl")
 
 ```
 
@@ -29,13 +30,6 @@ rna <- rename(rna, gene = X1) #rename first column
 
 
 qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
-
-
-
-qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
-
-qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
-
 
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
@@ -268,9 +262,11 @@ PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
 
 I=principal_curve(PCAX)
+names(I)
 
 #Principal Curve
 plot(I$s, xlim=c(-20,10))
+I$s
 
 #Overlay principle curve for PCA in fig.1. Makes Fig. 2A
 df1=as.data.frame(PCA$x)
