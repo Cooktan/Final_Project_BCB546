@@ -12,9 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 #Dependencies
 
 library("tidyverse")
-
-
-
+library("ggfortify")
+library("FactoMineR")
+library("princurve")
 ```
 
 
@@ -26,7 +26,6 @@ rna <- read_csv('./Data/GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
-
 
 qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
 
@@ -321,7 +320,126 @@ Anther_length_w_genes$gene=NULL
 #Make heatmap ordered by anther length
 Anther_length_w_genes1=(t(Anther_length_w_genes))
 
+##HEAD
+vst_cor<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
+
+## HEAD
+#REMOVE UNWANTED COLUMNS
+rnaT <- select(Anther_sorted, -c(5:6)) 
+
+rna7T <- rnaT %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
+
+dim(rna7T)
+
+
+
+
+##################################
+
+
+ ####
+ library(stringr)
+ library(dplyr)
+
+ ls()
+ rm(list=setdiff(ls(), "rna4"))
+
+ check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
+ head(check_reps)
+ unique(check_reps$n)
+ t
+ str(rna4)
+
+ check_reps <- check_reps %>% filter(n == 1)
+
+####
+#MAtheus help library(stringr)
+library(dplyr)
+
+install.packages('LearnBayes')
+
+
+
+HHHHH <- rna4 %>% group_by(cell, rep) %>% filter( rep =="2") %>% droplevels()
+
+y= as.data.frame(HHHHH)
+x= as.data.frame(rna4)
+
+JoinHHHH= right_join(y, x, "cell")
+JJJJJ <- rna4 %>% select(rep) %>% filter( rep =="2")%>% droplevels()
+
+a= c(HHHHH)
+b=c(JJJJJ)
+
+df= data.frame(a,b)
+
+c
+#Using Monocle
+
+
+#########################
+#MAtheus help library(stringr)
+library(dplyr)
+
+ls()
+
+
+ ####
+ library(stringr)
+ library(dplyr)
+
+ ls()
+ rm(list=setdiff(ls(), "rna4"))
+
+
+ check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n())
+ head(check_reps)
+ unique(check_reps$n)
+ t
+ str(rna4)
+
+
+ to_remove <- paste0(check_reps$gene, check_reps$cell)
+ to_remove[1:5]
+
+ rna4$index <- paste0(rna4$gene, rna4$cell)
+
+ pca_data <- rna4[-match(to_remove,rna4$index),]
+
+ dim(pca_data)
+ dim(rna4)
+ head(pca_data)
+
+ check_reps <- check_reps %>% filter(n == 1)
+
+
+ to_remove <- paste0(check_reps$gene, check_reps$cell)
+ to_remove[1:5]
+
+ rna4$index <- paste0(rna4$gene, rna4$cell)
+
+ pca_data <- rna4[-match(to_remove,rna4$index),]
+
+
+ dim(pca_data)
+ dim(rna4)
+ head(pca_data)
+
+
+ check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n=  n())
+ check_reps[which(check_reps$n != 2),]
+
+
+ check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n=  n())
+ check_reps[which(check_reps$n != 2),]
+
+ pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
+                              R2 = pca_data$count[which(pca_data$rep == 2)])
+
+pheatmap(vst_cor,border_color="white",labels_col =NA, labels_row = NA, treeheight_row = 0, treeheight_col = 0, cluster_rows = 0)
+
 vst_cor<- as.matrix(cor(Anther_length_w_genes1, method="spearman"))
+
 
 pheatmap(vst_cor,border_color="white",labels_col =NA,labels_row = "3040 genes", treeheight_row = 0, treeheight_col = 0)
 
@@ -352,7 +470,7 @@ colnames(table1.1)[1] <- 'cell'
 
 table1.2 <- table1.1 %>%  filter(quality_control=="PASS") %>%  select(cell, anther_size_mm)
 
-#Join two columns cell and rep and go wider
+#Join o wider
 
 rna4_wide <- rna4 %>% pivot_wider(names_from = gene, values_from = count)
 
@@ -382,7 +500,6 @@ rna4_x2 <- rna4_x[, !names(rna4_x) %in% deg$gene]
 #make anther_size_mm for grouping purposes
 rna4_x2$anther_size_mm <- as.numeric(rna4_x2$anther_size_mm)
 
-##normalize (uses columns)
 #Uses row sums
 rna4_x3 <- apply(rna4_x2[4:ncol(rna4_x2)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
 
@@ -392,37 +509,130 @@ rna4_log3 <- as.data.frame(t(rna4_x3))
 rna4_log3 <- cbind(rna4_x2[,1:3], rna4_log3)
 
 PCA_256 = prcomp(rna4_log3[, -c(1:3)], center=TRUE, scale.=FALSE)
-summary(PCA_256)
+#summary(PCA_256)
 
 #size=8 Will make the dots better. Place before colour
+
 
 ggfortify::autoplot(PCA_256, data=rna4_x2, size=5, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw()
 
 ggsave('pca2.png')
 
 
+autoplot(PCA_256, data=rna4_x2, size=2, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw()
 
 
-```
-```{r}
-##kmeans with cycle
-#kmeans plot
-set.seed(20)
-#autoplot(kmeans(rna4_log3[, -c(1:3)], 6), data=rna4_x2 )
 
-#Producing error currently
-ggsave('cell_cycle_cluster.png')
-
+ggsave('./Figures/pca2.png')
 
 ```
+##Attempt on clustering
+```{r}
+#filter whose sum across samples is > 100
+rna4_272 <- rna4_anther[4:ncol(rna4_anther)][, apply(rna4_anther[4:ncol(rna4_anther)],2,sum) > 100]
+
+#we get 272 obs, 13187 genes, 285 shy of 12902 from the paper
+
+#introduce the cell, rep, anther_size
+rna4_272x <- cbind(rna4_anther[1:3], rna4_272 )
+
+#filter the 375 
+# Deferentially expressed genes during specific stages
+rna4_272xx <- rna4_272x[, !names(rna4_272x) %in% deg$gene] 
+#we get 12817 against 12527 in the paper. We have 290 more??
+
+# extract data that is for clustering on Deferentially expressed genes during specific stages
+cell_cycle <- readxl::read_excel('./Data/aav6428_Nelms_Table-S2.xlsx')[,1:2]
+names(cell_cycle) <- c('gene', 'phase')
+
+
+
+# Grab Deferentially expressed genes during specific stages
+rna4_c1 <- rna4_272x[, names(rna4_272x) %in% cell_cycle$gene] 
+#Grabs the 453 variables we need
+#3 genes not found in here
+
+#add cell, rep, anther length
+rna4_c2 <- cbind(rna4_272xx[, 1:3], rna4_c1)
+
+##normalize
+#divide cell with each row sum
+rna4_c3 <- apply(rna4_c2[4:ncol(rna4_c2)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+
+
+rna4_c4 <- as.data.frame(t(rna4_c3))
+
+#combine
+rna4_c5 <- cbind(rna4_272xx[,1:3], rna4_c4)
+#write.csv(rna4_274b, file="with_anther_size")
+
+PCA_c6 = prcomp(rna4_c5[, -c(1:3)], center=TRUE, scale.=TRUE)
+#summary(PCA_c6)
+
+#cell-cycle gene by anther_size
+autoplot(PCA_c6, data= rna4_c5, colour = 'anther_size_mm')+ 
+  theme_bw() 
+
+```
+
 ```{r}
 ##kmeans with cycle
+
 #kmeans plot
 set.seed(20)
-#autoplot(kmeans(rna4_log3[, -c(1:3)], 6), data=rna4_x2 )
+autoplot(kmeans(rna4_c5[, -c(1:3)], 6), data = rna4_c5)
+ggsave('./Figures/cell_cycle_cluster.png')
 
-#Producing error currently
-ggsave('cell_cycle_cluster.png')
+```
+
+```{r}
+#fitting principle curve
+#getting the matrix to dataframe
+#get first 10PCA
+c <- as.data.frame(PCA_256$rotation[, 1:10])
+c1 <- rownames_to_column(c, var='gene')
+
+pc1 <-c1 %>% head(arrange(desc(PC1)), n=2000) %>% select(gene)
+pc2 <-c1 %>% head(arrange(desc(PC2)), n=2000) %>% select(gene)
+pc3 <-c1 %>% head(arrange(desc(PC3)), n=2000) %>% select(gene)
+pc4 <-c1 %>% head(arrange(desc(PC4)), n=2000) %>% select(gene)
+pc5 <-c1 %>% head(arrange(desc(PC5)), n=2000) %>% select(gene)
+pc6 <-c1 %>% head(arrange(desc(PC6)), n=2000) %>% select(gene)
+pc7 <-c1 %>% head(arrange(desc(PC7)), n=2000) %>% select(gene)
+pc8 <-c1 %>% head(arrange(desc(PC8)), n=2000) %>% select(gene)
+pc9 <-c1 %>% head(arrange(desc(PC9)), n=2000) %>% select(gene)
+pc10 <-c1 %>% head(arrange(desc(PC10)), n=2000) %>% select(gene)
+
+#create a dataframe with the top 2000 most vairable
+top2000 <- data.frame(pc1, pc2, pc3,pc4,pc5,pc6,pc7,pc8,pc9,pc10)
+
+top2k <- top2000$gene
+
+#filter original transformed data
+top_2000a <- rna4_x2[, names(rna4_x2) %in% top2k] 
+
+#top_2000a <- rna4_x2 %>% select(cell, rep, anther_size_mm, names(rna4_x2) %in% top2k)
+
+#Uses row sums
+top_2000b <- apply(top_2000a[1:ncol(top_2000a)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+top_2000c <- as.data.frame(t(top_2000b))
+
+#combine,  find right way to get cell, rep, anther
+#top_2000d <- cbind(rna4_x2[,1:3], top_2000c)
+
+top_pca = prcomp(top_2000c[, 1:ncol(top_2000c)], center=TRUE, scale.=TRUE)
+
+autoplot(top_pca)
+
+##principle curve
+pc <- principal_curve(as.matrix(top_2000c[, 1:ncol(top_2000c)]))
+plot(pc)
+
+pcx <- as.matrix(PCA_256$rotation[, 1:10])
+I=principal_curve(pcx)
+plot(I)
 
 ```
 
