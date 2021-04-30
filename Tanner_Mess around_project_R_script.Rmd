@@ -332,8 +332,61 @@ pheatmap(vst_cor2,border_color="white",labels_col =NA, labels_row = NA, treeheig
 
 ```
 
-##Yuru 4a,c,5c
+##Yuru 5a,5c
 ```{r}
+### Figure 5A
+
+### extract the expresses genes information in the table_S2
+Table_S2 <- read_excel("./Data/aav6428_Nelms_Table-S2.xlsx")
+#str(Table_S2)
+colnames(Table_S2) <- c("gene", "Cell_cycle_phase",  "Meiotic_expression_level", "Gene_discription")
+Table_S2$Cell_cycle_phase <- as.factor(Table_S2$Cell_cycle_phase)
+dim(Table_S2)
+MEG <- Table_S2$gene ## Expresses genes in meiotic cycle 
+length(MEG)
+
+
+rna_ftfc1 <- rna_ftf
+rna_norm1<- as.tibble(rna_ftf$gene)
+for (i in 2:length(rna_ftf)) {
+  a <- (rna_ftf[,i]/sum(rna_ftf[,i]))*1000000
+  rna_norm1 <- cbind(rna_norm1, a)
+  a <- NULL
+}
+rna_norm1 <- column_to_rownames(rna_norm1, 'value')
+rna_norm1 <- log10(rna_norm1[,1:length(rna_norm1)] + 11 )
+rna_norm_456 <- rna_norm1 %>% rownames_to_column(var = "Gene") %>% filter(Gene %in% MEG) #%>% select(!Gene)
+dim(rna_norm_456)
+
+### PCA of 448 genes after filtering MEG out from rna_norm1
+PCA_figure5a = prcomp(rna_norm_456[,-1], center=TRUE, scale.=TRUE)
+
+### PCA plotting
+PCA_figure5a$x %>% 
+  as.data.frame %>%mutate(phase=Table_S2.1$Cell_cycle_phase) %>% 
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point(aes(col=phase)) +
+  labs(title="Principal component plot of cell cycle–regulated genes", subtitle="Figure 5A")
+ggsave("./Figures/Figure5_A.png")
+
+### Figure 5C
+Table_S1 <- read_excel("./Data/aav6428_Nelms_Table-S1.xlsx",sheet = "Table S1")
+dim(Table_S1)
+colnames(Table_S1)
+Table_S1.1 <- Table_S1[,c(1, 3, 13, 14)]
+colnames(Table_S1.1) <- c("cell", "Anther_length", "Expression_stage", "Cell_cycle_phase")
+Table_S1.1$cell <- as.factor(Table_S1.1$cell)
+Table_S1.1$Cell_cycle_phase <- as.factor(Table_S1.1$Cell_cycle_phase)
+
+cbp1 <- c("#999999", "#56B4E9", "#C3D7A4","#009E73","#293352", "#0072B2")
+Table_S1.1 %>% filter(!Cell_cycle_phase == "N.D.") %>% droplevels() %>% 
+  mutate(anther_length = cut(Anther_length, breaks= c(0.2, 0.4, 0.6, 0.85, 1.1, 1.25, 1.4, 1.6))) %>%
+  ggplot()+
+  geom_bar(aes(x=anther_length, fill=Cell_cycle_phase), position = "fill", width=0.5)+
+  scale_fill_manual(values = cbp1) +
+  labs(title="Estimated proportion of cells assigned to each cell-cycle", subtitle="Figure 5C")
+ggsave("./Figures/Figure5_C.png")
+
 
 ```
 
