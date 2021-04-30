@@ -10,34 +10,36 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #Dependencies
+
 library("tidyverse")
 library("factoextra")
 library("FactoMineR")
 library("readxl")
 
+
+library("ggfortify")
+library("FactoMineR")
+library("princurve")
+
 ```
 
-```{r}
-#Set working directory
-setwd('.')
-getwd()
-list.files()
-```
 
-Reading data
+#Reading data
 
 ```{r}
 # Counts
-rna <- read_csv('./GSE121039_AR_scRNAseq_transcript_counts.csv')
+rna <- read_csv('./Data/GSE121039_AR_scRNAseq_transcript_counts.csv')
 rna <- rename(rna, gene = X1) #rename first column
 
 # Quality control: PASS/FAIL
-qc <- readxl::read_excel('./aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
+
+qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
 names(qc)[12] <- 'QC' 
 qc <- qc[qc$QC == "PASS", "Cell Number"]
 
 # Deferentially expressed genes during specific stages
-deg <- readxl::read_excel('./aav6428_Nelms_Table-S2.xlsx')[,1:2]
+deg <- readxl::read_excel('./Data/aav6428_Nelms_Table-S2.xlsx')[,1:2]
 names(deg) <- c('gene', 'phase')
 deg <- deg %>% filter(phase != "G1") %>% select(gene)
 
@@ -49,12 +51,12 @@ head(qc)
 #get into long format
 rna1 <- pivot_longer(rna, cols = starts_with('Cell'))
 ```
+#rename the columns
+#select the columns
 
 
 ```{r}
 #separate 'name' into 4 columns, 
-#rename the columns
-#select the columns
 
 rna3 <- separate(rna1, name, into = paste0("y",1:4), sep = " ") %>% 
   select(!c(y1, y3)) %>% rename(c('cell' = y2, 'rep'= y4, 'count' = value))
@@ -65,20 +67,11 @@ rna3 <- separate(rna1, name, into = paste0("y",1:4), sep = " ") %>%
 ```{r}
 #Filter cells based on QC
 rna4 <- filter(rna3, cell %in% qc$`Cell Number`)
-dim(rna4)
+names(rna4)[1] <- 'gene'
 head(rna4)
 
 paste0("Total number of cells after Quality Control: ", length(unique(as.numeric(rna4$cell))))
 ```
-
-
-``` {r}
-##convert cell & rep into numeric & Count unique cells.
-n.cells2 <- unique(as.numeric(rna4$cell)) #now we have 144 cells
-
-#rna4 contains all cells that passed QC and were used in the analysis
-```
-
 
 ``` {r}
 
@@ -86,6 +79,7 @@ n.cells2 <- unique(as.numeric(rna4$cell)) #now we have 144 cells
 #pooling cells using sum
 rna5 <- rna4 %>%  group_by(gene,cell,) %>% summarise(n=n(), sum = sum(count))
 paste("There are ", length(unique(as.numeric(rna5$cell))), " unique cells in rna5")
+
 ```
 
 ``` {r}
@@ -118,7 +112,7 @@ rna9[1:5, 1:4]
 ```
 
 ```{r}
-# transpose data frame so cells are row and genes are columns
+# transpose data frame so cells are rows and genes are columns
 rna9_t <- as.data.frame(t(as.matrix(rna9)))
 ```
 
@@ -155,10 +149,11 @@ rna9_ft %>%
   group_by(gene) %>% dplyr::summarise(m = sum(c_across(2:length(rna9_ft)-1))) %>%  
   filter(m > 100) %>% select(gene) -> exp_genes
 
-rna_ftf <- as.tibble(rna9_ft[rna9_ft$gene %in% exp_genes$gene,])
+rna_ftf <- as_tibble(rna9_ft[rna9_ft$gene %in% exp_genes$gene,])
 dim(rna_ftf)
 ```
-Filtering out genes differentially expressed in specific stages
+
+#Filtering out genes differentially expressed in specific stages
 ```{r}
 rna_ftfc <- rna_ftf %>% filter(!gene %in% deg$gene)
 ```
@@ -168,7 +163,7 @@ Normalization
 
 # Step 1: divided each individual count by the total counts per cell, and multiply by 1000000 
 
-rna_norm <- as.tibble(rna_ftfc$gene) # tibble ngenes x 1 for starting fillling with normalized data
+rna_norm <- as_tibble(rna_ftfc$gene) # tibble ngenes x 1 for starting fillling with normalized data
 
 for (i in 2:length(rna_ftfc)) {
   a <- (rna_ftfc[,i]/sum(rna_ftfc[,i]))*1000000
@@ -180,9 +175,9 @@ rna_norm <- column_to_rownames(rna_norm, 'value') # for transposing
 
 # Step 2: log transformation after add 11
 
-rna_norm <- log10(rna_norm[,1:length(rna_norm)] + 11 )
+rna_log <- log10(rna_norm[,1:length(rna_norm)] + 11 )
 
-rna_norm[1:5, 1:5]
+rna_log[1:5, 1:5]
 
 rna_final <- as.data.frame(t(as.matrix(rna_norm)))
 rna_final[1:5, 1:5]
@@ -191,14 +186,15 @@ rna_final[1:5, 1:5]
 
 
 ```{r}
-PCA = prcomp(rna_final, center=TRUE, scale.=TRUE)
+PCA = prcomp(rna_final, center=TRUE, scale.=FALSE)
 summary(PCA)
 
 PCA$x %>% 
   as.data.frame %>%
-  ggplot(aes(x = PC1, y = PC2)) + 
-  geom_point()
+  ggplot(aes(x = PC1, y = PC2, size=100)) + 
+  geom_point()+theme(legend.position = "None")
 
+ggsave('pca2.jpeg')
 ```
 
 #Figures assignment
@@ -215,39 +211,48 @@ Fig5 c e
 
 
 ##Tanner 2 a c d
-```{r include=FALSE}
-install.packages('PRcurve')
-suppressWarnings(suppressPackageStartupMessages(library(ggplot2)))
 
-suppressWarnings(suppressPackageStartupMessages(library(cowplot)))
 
-library(slingshot)
-library(monocle)
+
+
+```{r}
+#Dependencies
 library("princurve")
-library(dplyr)
 library(data.table)
+library(pheatmap)
 
-#Pseudotime
+```
 
-#Take Juan's Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
+
+```{r}
+
+####Pseudotime
+
+##Take Normalized genes and the filter with 2000 genes with highest variance and use for pseudotime. From fig. S3
+
+ Anther_size = read.table("./Data/Updated_S1.txt", header= T)
 
 #Transform data to merge files to use only 2000 genes
 rna_final_Tanner= as.data.frame(t(rna_final)) 
-variance2000 = read.table("2000genE_s3.txt", header= T)
+s3= read.csv("./Data/aav6428_Nelms_Table-S3.csv", header=T)
 
 #Add a column label to rownames
 setDT(rna_final_Tanner, keep.rownames = "gene")[]
 
 #Merge Files
-Variance2000transcripts=inner_join(rna_final_Tanner,variance2000, "gene" )# Discrepancy on genes.. We lost some due to not being present
+Variance2000transcripts=inner_join(rna_final_Tanner,s3 )### MAke a combined table of all fig s3, order by variance and then slice 2000
 
+y= Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
+  select(1:258) %>% 
+  top_n(2000)
+
+ 
 #Remove gene id column
-Variance2000transcripts$gene=NULL
+y$gene=NULL
 
 #Trying the PCA with prcomp
 
-
-PCA2= prcomp(Variance2000transcripts, center=TRUE, scale.=TRUE)
+PCA2= prcomp(y, center=TRUE, scale.=FALSE)
 summary(PCA)
 PCA2$x %>% 
   as.data.frame %>%
@@ -258,139 +263,75 @@ plot(PCA2)
 names(PCA2)
 
 #PCA 10 as a matrix while selecting the X values from the PCA
-PCAX= as.matrix(PCA2$x)
+PCAX= as.matrix(PCA2$x [,1:10])
 PCAX
 
 I=principal_curve(PCAX)
-print(I)
-
-#PC1vsPC2 graph
-
-J=PCA2$x %>% 
-  as.data.frame %>%
-  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=4) +
-  theme_bw(base_size=32)
-J
+names(I)
 
 #Principal Curve
-plot(I)
-plot(I$lambda)
-plot(PCA2$x) # any of the PCA names can be called here (where x is)
+plot(I$s, xlim=c(-20,10))
+I$s
+
+#Overlay principle curve for PCA in fig.1. Makes Fig. 2A
+df1=as.data.frame(PCA$x)
+df2=as.data.frame(I$s)
+
+df1 %>% 
+  ggplot(aes(x =PC1, y = PC2)) + 
+  geom_point() +
+  geom_smooth(data = df2, aes(x = PC1, y = PC2)) +
+  theme(legend.position = "none")+xlim(-20,30)
 
 
-##Allows us to see the variable in the PCA result
-# "X" is the principal components of interest *Source:https://cmdlinetips.com/2019/04/introduction-to-pca-with-r-using-prcomp/
-names(PCA)
+ggsave('Pseudotime_PCA_overlay.jpeg')
 ```
 
 
-```{r include=FALSE}
-##Everything below doesn't help out but please DO NOT DELETE
+```{r}
+#### Heatmap  Fig. 2
+#Sort by Anther size
 
-##########################################################################################################################
-
-
-#Adding Anther size... it may not matter
-
-###################################################
-# make the columns the same value type
-#Anther_sort$cell <- as.numeric(Anther_sort$cell)
-#Anther_sort$rep <- as.numeric(Anther_sort$rep)
-#Anther_sort$count <- as.numeric(Anther_sort$count)
- 
-library(readr)
-
-Anther_size = read.table("Updated_S1.txt", header= T)
+ANTHER1=read.csv("./Data/with_anther_size", header=T)
 
 
-rna4$cell <- as.numeric(as.character(rna4$cell))
+ANTHER2=ANTHER1[order(ANTHER1$anther_size_mm),]
+ANTHER2=as.tibble(ANTHER2)
 
-Anther_sort=right_join(rna4, Anther_size, "cell")
+#Remove cells that don't pass QC Result=144 cells
+ANTHER3 <- filter(ANTHER2, cell %in% qc$`Cell Number`)
+ANTHER4=t(ANTHER3)
 
-Anther_sorted=Anther_sort[with(Anther_sort,order(Anther_size)), ]
+#Remove rows X, cell, rep,anther_size_mm
+ANTHER5=ANTHER4[-c(1,2,3,4),]
+ANTHER6=as.data.frame(ANTHER5)
 
+#Add row names as a column for sorting
 
-#REMOVE UNWANTED COLUMNS
-rnaT <- select(Anther_sorted, -c(5:6)) 
+setDT(ANTHER6, keep.rownames = "gene")[]
 
-rna7T <- rnaT %>%  unite("cell",c(cell, rep), sep = "_") %>% pivot_wider(names_from = cell, values_from = count, names_prefix='cell')
-
-dim(rna7T)
+#Anther length with 3040 genes
+Anther_length_w_genes=inner_join(ANTHER6,s3) # 3040 genes and 144 cells
 
 
 
-##################################
+#Remove gene names 
+Anther_length_w_genes$gene=NULL
 
-####
-#MAtheus help library(stringr)
-library(dplyr)
-
-install.packages('LearnBayes')
+#Make heatmap ordered by anther length
+Anther_length_w_genes1=(t(Anther_length_w_genes))
 
 
-
-HHHHH <- rna4 %>% group_by(cell, rep) %>% filter( rep =="2") %>% droplevels()
-
-y= as.data.frame(HHHHH)
-x= as.data.frame(rna4)
-
-JoinHHHH= right_join(y, x, "cell")
-JJJJJ <- rna4 %>% select(rep) %>% filter( rep =="2")%>% droplevels()
-
-a= c(HHHHH)
-b=c(JJJJJ)
-
-df= data.frame(a,b)
-
-c
-#Using Monocle
+vst_cor<- as.matrix(cor(Anther_length_w_genes1, method="spearman"))
+vst_cor2<- as.matrix(cor(Anther_length_w_genes, method="spearman"))
 
 
-#########################
-#MAtheus help library(stringr)
-library(dplyr)
-
-ls()
+pheatmap(vst_cor,border_color="white",labels_col =NA,labels_row = "3040 genes", treeheight_row = 0, treeheight_col = 0, cluster_rows = 2, cluster_cols = 2)
+pheatmap(vst_cor2,border_color="white",labels_col =NA, labels_row = NA, treeheight_row = 0, treeheight_col = 0, cluster_rows = 2, cluster_cols = 2)
 
 
-check_reps <- rna4 %>% group_by(gene, cell) %>% summarise(n = n()) 
-head(check_reps)
-unique(check_reps$n)
-t
-str(rna4)
-
-check_reps <- check_reps %>% filter(n == 1)
-
-
-to_remove <- paste0(check_reps$gene, check_reps$cell)
-to_remove[1:5]
-
-rna4$index <- paste0(rna4$gene, rna4$cell)
-
-pca_data <- rna4[-match(to_remove,rna4$index),]
-
-dim(pca_data)
-dim(rna4)
-head(pca_data)
-
-
-
-check_reps <- pca_data %>% group_by(gene, cell) %>% summarise(n = n()) 
-check_reps[which(check_reps$n != 2),]
-
-
-pca_data_final <- data.frame(R1 = pca_data$count[which(pca_data$rep == 1)],
-                             R2 = pca_data$count[which(pca_data$rep == 2)])
-
-
-sum(pca_data$rep == 1)
-sum(pca_data$rep == 2)
-########################################################################################################
-#Please do not delete ^
 ```
 
-
-```{r include=FALSE}
 ##Yuru 4a,c,5c
 ```{r}
 
@@ -398,12 +339,337 @@ sum(pca_data$rep == 2)
 
 ##Chiteri 1 c 2 b 5e
 ```{r}
+# Quality control: PASS/FAIL
+table1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
+#rename the columns..replace spaces with underscore and lower case
+table1.1 <- table1 %>%  
+  select_all(~gsub("\\s", "_", .)) %>% 
+  select_all(tolower)
+
+#rename anthersize column name
+colnames(table1.1)[3] <- 'anther_size_mm'
+colnames(table1.1)[1] <- 'cell'
+
+#filter only cells that passed
+
+table1.2 <- table1.1 %>%  filter(quality_control=="PASS") %>%  select(cell, anther_size_mm)
+
+#Join o wider
+
+rna4_wide <- rna4 %>% pivot_wider(names_from = gene, values_from = count)
+
+rna4_anther <- merge(rna4_wide, table1.2, by='cell') %>% select(cell, rep, anther_size_mm, everything()) %>% arrange(as.numeric(cell))
+
+rna4_replicated <- rna4_anther %>% group_by(cell) %>% filter(n()==2) %>%  ungroup() 
+
+
+#make anther_size_mm for grouping purposes
+rna4_replicated$anther_size_mm <- as.character(rna4_replicated$anther_size_mm)
+
+#filter whose sum across samples is > 100
+rna4_filtered <- rna4_replicated[4:ncol(rna4_replicated)][, apply(rna4_replicated[4:ncol(rna4_replicated)],2,sum) > 100]
+
+
+#we get 256 obs, 12912 genes, 10 shy of 12902 from the paper
+
+#introduce the cell, rep, anther_size
+rna4_x <- cbind(rna4_replicated[1:3], rna4_filtered )
+
+#filter the 375 
+# Deferentially expressed genes during specific stages
+rna4_x2 <- rna4_x[, !names(rna4_x) %in% deg$gene] 
+#we get 12544 against 12527 in the paper. We have 17 more??
+
+
+#make anther_size_mm for grouping purposes
+rna4_x2$anther_size_mm <- as.numeric(rna4_x2$anther_size_mm)
+
+#Uses row sums
+rna4_x3 <- apply(rna4_x2[4:ncol(rna4_x2)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+rna4_log3 <- as.data.frame(t(rna4_x3))
+
+#combine
+rna4_log3 <- cbind(rna4_x2[,1:3], rna4_log3)
+
+PCA_256 = prcomp(rna4_log3[, -c(1:3)], center=TRUE, scale.=FALSE)
+#summary(PCA_256)
+
+#size=8 Will make the dots better. Place before colour
+
+
+ggfortify::autoplot(PCA_256, data=rna4_x2, size=5, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw()
+
+ggsave('pca2.png')
+
+
+autoplot(PCA_256, data=rna4_x2, size=2, colour= 'anther_size_mm') + geom_line(aes(group = cell))+ scale_color_gradient2(low = "gray",high = "black", space = "Lab" )+theme_bw()
+
+
+
+ggsave('./Figures/pca2.png')
 
 ```
+##Attempt on clustering
+```{r}
+#filter whose sum across samples is > 100
+rna4_272 <- rna4_anther[4:ncol(rna4_anther)][, apply(rna4_anther[4:ncol(rna4_anther)],2,sum) > 100]
+
+#we get 272 obs, 13187 genes, 285 shy of 12902 from the paper
+
+#introduce the cell, rep, anther_size
+rna4_272x <- cbind(rna4_anther[1:3], rna4_272 )
+
+#filter the 375 
+# Deferentially expressed genes during specific stages
+rna4_272xx <- rna4_272x[, !names(rna4_272x) %in% deg$gene] 
+#we get 12817 against 12527 in the paper. We have 290 more??
+
+# extract data that is for clustering on Deferentially expressed genes during specific stages
+cell_cycle <- readxl::read_excel('./Data/aav6428_Nelms_Table-S2.xlsx')[,1:2]
+names(cell_cycle) <- c('gene', 'phase')
+
+
+
+# Grab Deferentially expressed genes during specific stages
+rna4_c1 <- rna4_272x[, names(rna4_272x) %in% cell_cycle$gene] 
+#Grabs the 453 variables we need
+#3 genes not found in here
+
+#add cell, rep, anther length
+rna4_c2 <- cbind(rna4_272xx[, 1:3], rna4_c1)
+
+##normalize
+#divide cell with each row sum
+rna4_c3 <- apply(rna4_c2[4:ncol(rna4_c2)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+
+
+rna4_c4 <- as.data.frame(t(rna4_c3))
+
+#combine
+rna4_c5 <- cbind(rna4_272xx[,1:3], rna4_c4)
+#write.csv(rna4_274b, file="with_anther_size")
+
+PCA_c6 = prcomp(rna4_c5[, -c(1:3)], center=TRUE, scale.=TRUE)
+#summary(PCA_c6)
+
+#cell-cycle gene by anther_size
+autoplot(PCA_c6, data= rna4_c5, colour = 'anther_size_mm')+ 
+  theme_bw() 
+
+```
+
+```{r}
+##kmeans with cycle
+
+#kmeans plot
+set.seed(20)
+autoplot(kmeans(rna4_c5[, -c(1:3)], 6), data = rna4_c5)
+ggsave('./Figures/cell_cycle_cluster.png')
+
+```
+
+```{r}
+#fitting principle curve
+#getting the matrix to dataframe
+#get first 10PCA
+c <- as.data.frame(PCA_256$rotation[, 1:10])
+c1 <- rownames_to_column(c, var='gene')
+
+pc1 <-c1 %>% head(arrange(desc(PC1)), n=2000) %>% select(gene)
+pc2 <-c1 %>% head(arrange(desc(PC2)), n=2000) %>% select(gene)
+pc3 <-c1 %>% head(arrange(desc(PC3)), n=2000) %>% select(gene)
+pc4 <-c1 %>% head(arrange(desc(PC4)), n=2000) %>% select(gene)
+pc5 <-c1 %>% head(arrange(desc(PC5)), n=2000) %>% select(gene)
+pc6 <-c1 %>% head(arrange(desc(PC6)), n=2000) %>% select(gene)
+pc7 <-c1 %>% head(arrange(desc(PC7)), n=2000) %>% select(gene)
+pc8 <-c1 %>% head(arrange(desc(PC8)), n=2000) %>% select(gene)
+pc9 <-c1 %>% head(arrange(desc(PC9)), n=2000) %>% select(gene)
+pc10 <-c1 %>% head(arrange(desc(PC10)), n=2000) %>% select(gene)
+
+#create a dataframe with the top 2000 most vairable
+top2000 <- data.frame(pc1, pc2, pc3,pc4,pc5,pc6,pc7,pc8,pc9,pc10)
+
+top2k <- top2000$gene
+
+#filter original transformed data
+top_2000a <- rna4_x2[, names(rna4_x2) %in% top2k] 
+
+#top_2000a <- rna4_x2 %>% select(cell, rep, anther_size_mm, names(rna4_x2) %in% top2k)
+
+#Uses row sums
+top_2000b <- apply(top_2000a[1:ncol(top_2000a)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+top_2000c <- as.data.frame(t(top_2000b))
+
+#combine,  find right way to get cell, rep, anther
+#top_2000d <- cbind(rna4_x2[,1:3], top_2000c)
+
+top_pca = prcomp(top_2000c[, 1:ncol(top_2000c)], center=TRUE, scale.=TRUE)
+
+autoplot(top_pca)
+
+##principle curve
+pc <- principal_curve(as.matrix(top_2000c[, 1:ncol(top_2000c)]))
+plot(pc)
+
+pcx <- as.matrix(PCA_256$rotation[, 1:10])
+I=principal_curve(pcx)
+plot(I)
+
+```
+
+
 
 ##Juan 4b d e
+
+# Getting data for figures 4 b
+
 ```{r}
+# Required data frames. From "Table.S4" we need gene names for Clusters 5 and 6  
+
+Table.S4 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S4.xlsx')
+names(Table.S4) <- c('Gene', 'Category', 'Gene_name', 'Cluster', 'Meiocytes_Exp') 
+
+cluster_5 <- Table.S4 %>% filter(Cluster == 5) %>% select(Gene)
+cluster_6 <- Table.S4 %>% filter(Cluster == 6) %>% select(Gene)
+
+# From Table.S1, we will use anther lenght
+
+Table.S1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
+
+Table.S1 %>% 
+  filter(!`Cell cycle phase` == "N.D.") %>% droplevels() %>% 
+  select(`Cell Number`, `Plant Number`, `Cell cycle phase`, `Anther size (mm)`) %>% 
+  arrange(match(`Cell cycle phase`, c("G1", "G1/S", "S", "G2/M", "M", "mei")))
+
 
 ```
+```{r}
+rna_norm %>% rownames_to_column("gene") %>% 
+  filter(gene %in% c(cluster_5$Gene, cluster_6$Gene)) %>% 
+  column_to_rownames("gene") %>% t() %>% 
+  as.data.frame() %>% 
+  rownames_to_column('Cell') %>% 
+  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig4 
 
+fig4$`Cell Number` <- parse_number(fig4$`Cell Number`) 
+
+fig4 %>%  
+  left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> fig4t
+
+library(patchwork)
+
+fig4t$Stage <- cut(fig4t$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf), 
+    labels = c('Mitotic expansion',
+               "AR/PMC transition",
+               'PMC/Pr1',
+               "Pr1/PR2 transition",
+               'End of Early meoitic prophase'))
+
+fig4.b.1 <- fig4t %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d039133, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Afd1/Rec8") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+fig4.b.2 <- fig4t %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d025575, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Zip1") + xlab('Anther length (mm)') + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+fig4b <- (fig4.b.1 / fig4.b.2) + plot_layout(guides = 'collect')
+
+ggsave('./Figures/Figure4_b.png', plot = fig4b)
+
+```
+Additional figures for 2D
+```{r}
+############################   Extra figures 2.D  ##################################
+
+fig2 <- as.tibble(rna9_ft)
+
+fig2df <- as.tibble(fig2$gene)
+for (i in 2:length(fig2)) {
+  a <- (fig2[,i]/sum(fig2[,i]))*1000000
+  fig2df <- cbind(fig2df, a)
+  a <- NULL
+}
+
+fig2df <- fig2df %>%  
+  filter(value %in% c('Zm00001d027037', 'Zm00001d039101', 'Zm00001d009343', 'Zm00001d050069', 'Zm00001d013377')) 
+
+fig2df %>% 
+  column_to_rownames("value") %>% t() %>% 
+  as.data.frame() %>% 
+  rownames_to_column('Cell') %>% 
+  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig2ddf
+
+fig2ddf$`Cell Number` <- parse_number(fig2ddf$`Cell Number`) 
+
+fig2ddf %>%  
+  left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> fig2ddf_sum
+
+fig2ddf_sum$Stage <- cut(fig2ddf_sum$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf), 
+    labels = c('Mitotic expansion',
+               "AR/PMC transition",
+               'PMC/Pr1',
+               "Pr1/PR2 transition",
+               'End of Early meoitic prophase'))
+
+Unk1 <- 
+  fig2ddf_sum %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d027037, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Zip1") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+  
+Rmf <- fig2ddf_sum %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d039101, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Rmf") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Rps4a <- fig2ddf_sum %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d009343, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Rps4a") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Trps8 <- 
+  fig2ddf_sum %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d050069, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Trps8") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Unk2 <- 
+  fig2ddf_sum %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d013377, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Unk2") + xlab('Anther length (mm)') + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+fig2dextra <- (Unk1 / Rmf / Trps8 / Unk2) + plot_layout(guides = 'collect')
+
+ggsave('./Figures/Figure2_d.png', plot = fig2dextra)
+```
 
