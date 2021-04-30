@@ -576,9 +576,8 @@ plot(I)
 
 
 
-
 ##Juan 4b d e
-# Figure 4b
+
 # Getting data for figures 4 b
 
 ```{r}
@@ -590,7 +589,7 @@ names(Table.S4) <- c('Gene', 'Category', 'Gene_name', 'Cluster', 'Meiocytes_Exp'
 cluster_5 <- Table.S4 %>% filter(Cluster == 5) %>% select(Gene)
 cluster_6 <- Table.S4 %>% filter(Cluster == 6) %>% select(Gene)
 
-# Load Table.S1, from we will anther length
+# From Table.S1, we will use anther lenght
 
 Table.S1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
 
@@ -601,41 +600,21 @@ Table.S1 %>%
 
 
 ```
-
-Dataframe for Figure 4b
-Figure 4 b plots Transcripts per million vs pseudotime. Given Pseudotime was not obtained,
-we used anther length as a proxy of the developmental stage.
-
-To re create this figure, first we need to pick up significant genes in Clusters 5 and 6 
-from the normalized counts, before log transformation.
-
 ```{r}
-rna_norm %>% 
-  rownames_to_column("gene") %>% 
+rna_norm %>% rownames_to_column("gene") %>% 
   filter(gene %in% c(cluster_5$Gene, cluster_6$Gene)) %>% 
   column_to_rownames("gene") %>% t() %>% 
   as.data.frame() %>% 
   rownames_to_column('Cell') %>% 
-  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig4
-```
+  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig4 
 
-After filtering genes, column `Cell Number` is modified for allowing match its name to 
-Table.S1, from where we get `Anther Length (mm)`
-
-```{r}
 fig4$`Cell Number` <- parse_number(fig4$`Cell Number`) 
 
 fig4 %>%  
   left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> fig4t
 
-```
+library(patchwork)
 
-Plotting Afd1/Rec8 and Zyp1
-
-```{r}
-library(patchwork) # Patchwork allows a nicer syntax for combining multiple ggplots
-
-# Define limits in anther size for Developmental stage, stored as `$Stage`
 fig4t$Stage <- cut(fig4t$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf), 
     labels = c('Mitotic expansion',
                "AR/PMC transition",
@@ -643,98 +622,32 @@ fig4t$Stage <- cut(fig4t$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf),
                "Pr1/PR2 transition",
                'End of Early meoitic prophase'))
 
-# Two plots combined afterwards. "Afd1/Rec8" and "Zip1";
-# aes() includes three terms: Anther size (our x, continuous), 
-#                             Gene name (it is actually a column of counts, continuous)
-#                             Stage (categorical) 
-# geom_point plots counts vs anther size
-# geom_smooth plots the overlaid smoothed curve
-# references added and edited by labs() and theme() options
-
 fig4.b.1 <- fig4t %>% 
   ggplot(aes(x = `Anther size (mm)`, y = Zm00001d039133, color = Stage)) + 
   geom_point() +
   geom_smooth(color = 'red', se = F) +
-  labs(title = "Afd1/Rec8", caption = "Cluster 5 \nGradual Upregulation") + xlab(NULL) + ylab("TPM") +
+  labs(title = "Afd1/Rec8") + xlab(NULL) + ylab("TPM") +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5),
-        plot.caption = element_text(size = 8, face = "italic"))
+  theme(plot.title = element_text(hjust = 0.5)) 
 
 fig4.b.2 <- fig4t %>% 
   ggplot(aes(x = `Anther size (mm)`, y = Zm00001d025575, color = Stage)) + 
   geom_point() +
   geom_smooth(color = 'red', se = F) +
-  labs(title = "Zip1", caption = "Cluster 6 \nLate Upregulation") + xlab('Anther length (mm)') + ylab("TPM") +
+  labs(title = "Zip1") + xlab('Anther length (mm)') + ylab("TPM") +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5),
-        plot.caption = element_text(size = 8, face = "italic"))
-
-# The following code calls the patchwork's grammar for creating a merged plot and combining legends
+  theme(plot.title = element_text(hjust = 0.5))
 
 fig4b <- (fig4.b.1 / fig4.b.2) + plot_layout(guides = 'collect')
 
 ggsave('./Figures/Figure4_b.png', plot = fig4b)
 
 ```
-# Figure 4.d
-
-This figure was generated after running manual analysis usign by  the webtool AgriGO V2.0.
-Gene names from each cluster where taken from Table.S4, then Singular Enrichment Analysis was performed by cluster, using as reference "Maize AGPv4 (Maize-GAMER)". Genes with GO terms associated to the only word
-"translation" where selected for this analysis (in genes_clust.txt).
-
+Additional figures for 2D
 ```{r}
-# Call genes_clust for getting genes present in each gene cluster by unsupervised clustering
+############################   Extra figures 2.D  ##################################
 
-clust <- read_delim(file = './Data/genes_clust.txt', delim = '\t', col_names = T)
-
-# Create the dataframe for figure 4d: Counts of occurrences of differentially expressed genes in each cluster
-
-clust %>% 
-  group_by(Cluster, Name) %>% 
-  summarise(n = n()) %>%
-  group_by(Cluster) %>%
-  summarise(n = n()) %>%
-  add_column(total = c(560, 507, 275, 
-                       108, 412, 129)) %>%
-  mutate(percent = n/total*100) -> fig4d
-
-fig4d
-```
-
-Bar plot for gene counts in each cluster 
-
-```{r}
-f4d <- ggplot() + 
-  geom_col(data = fig4d, aes(x= Cluster, y = percent, fill = 'pink')) +
-  geom_hline(yintercept = (sum(fig4d$n)/3046*100), linetype = 'dashed') +
-  scale_x_continuous(breaks = 1:6) +
-  geom_text() +
-  annotate("text", label = paste0("Expected translation GO temrms \nif distributed at random: ", 
-                                  round(sum(fig4d$n)/3046*100, 2), " %"),
-           x = 5, y = 13) +
-  labs(title = "Figure 4.D", 
-       subtitle = "Genes involved in translation GO term for each cluster", 
-       y = "% translation genes") +
-  theme_bw() +
-  theme(legend.position = 'none', 
-        plot.subtitle = element_text(face = "italic"))
-
-f4d  
-ggsave('./Figures/Figure4_d.png', plot = f4d)
-```
-
-# Additional figures for 2D
-
-On the right hand-side of the heatmap.
-The starting file has counts of rna before log transformation.
-Given that genes reported in the paper turned put to be filtered out due to low expression,
-we took the data file even before filtering those genes, re-normalized it, and genes of interest
-were filtered
-
-```{r}
-fig2 <- as.tibble(rna9_ft) # call rna counts before filtering out low expressed genes
-
-# TPM normalization as describe in the supplementary methods
+fig2 <- as.tibble(rna9_ft)
 
 fig2df <- as.tibble(fig2$gene)
 for (i in 2:length(fig2)) {
@@ -742,52 +655,27 @@ for (i in 2:length(fig2)) {
   fig2df <- cbind(fig2df, a)
   a <- NULL
 }
-```
 
-Steps in the next chunk:
-1. Filtering counts file for getting genes Rps4a, Unk1, Unk2, Rmf, Trps8 into a new datafile. 
-Rpl38e Identifier not founded
-2. Reshape datafile and Column `Cell Number` modified to match to Table.S1
-3. Merge filtered df to anther length (mm) from Table.S1
-
-``` {r}
-# 1. filtering
 fig2df <- fig2df %>%  
   filter(value %in% c('Zm00001d027037', 'Zm00001d039101', 'Zm00001d009343', 'Zm00001d050069', 'Zm00001d013377')) 
 
-# 2. Reshaping datafile
 fig2df %>% 
   column_to_rownames("value") %>% t() %>% 
   as.data.frame() %>% 
   rownames_to_column('Cell') %>% 
   separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig2ddf
 
-# 2. Modify column `Cell Number` 
 fig2ddf$`Cell Number` <- parse_number(fig2ddf$`Cell Number`) 
 
-# 3. Merge anther length to datafile 
 fig2ddf %>%  
   left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> fig2ddf_sum
-```
 
-Plotting the gene expression vs anther size
-
-```{r}
-# Define breaks for different stages for a given anther size
 fig2ddf_sum$Stage <- cut(fig2ddf_sum$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf), 
     labels = c('Mitotic expansion',
                "AR/PMC transition",
                'PMC/Pr1',
                "Pr1/PR2 transition",
                'End of Early meoitic prophase'))
-
-# Four plots combined afterwards. "Rpl38e" and "Rps4a" were discarded given low counts or not counted;
-# aes() includes three terms: Anther size (our x, continuous), 
-#                             Gene name (it is actually a column of counts, continuous)
-#                             Stage (categorical) 
-# geom_point plots counts vs anther size
-# geom_smooth plots the overlaid smoothed curve
-# references added and edited by labs() and theme() options
 
 Unk1 <- 
   fig2ddf_sum %>%
@@ -832,8 +720,6 @@ Unk2 <-
   labs(title = "Unk2") + xlab('Anther length (mm)') + ylab("TPM") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0))
-
-# The following code calls the patchwork's grammar for creating a merged plot and combining legends
 
 fig2dextra <- (Unk1 / Rmf / Trps8 / Unk2) + plot_layout(guides = 'collect')
 
