@@ -841,3 +841,50 @@ fig2dextra <- (Unk1 / Rmf / Trps8 / Unk2) + plot_layout(guides = 'collect')
 ggsave('./Figures/Figure2_d.png', plot = fig2dextra)
 ```
 
+
+#Figure 3A
+#Subset Marker Genes from RNA Expression data as Datasets
+```{r}
+#Subsetting Marker Genes by ZM Name - RPL-38e cannot be found
+ago18a <- GSE121039_AR_scRNAseq_transcript_counts[ GSE121039_AR_scRNAseq_transcript_counts$"X1" %in% c("Zm00001d006351"), ]
+
+RMF <- GSE121039_AR_scRNAseq_transcript_counts[ GSE121039_AR_scRNAseq_transcript_counts$"X1" %in% c("Zm00001d008945"), ]
+
+C3H3 <- GSE121039_AR_scRNAseq_transcript_counts[ GSE121039_AR_scRNAseq_transcript_counts$"X1" %in% c("Zm00001d039101"), ]
+
+trps8 <- GSE121039_AR_scRNAseq_transcript_counts[ GSE121039_AR_scRNAseq_transcript_counts$"X1" %in% c("Zm00001d050069"), ]
+```
+
+#Normalize Gene Expression
+
+#Merge with Anther Data
+
+#Attempting to Graph Marker Gene datasets with Pseudotime
+```{r}
+M_Mark_Psu1 <- merge()#??
+#How to merge data and plot on same graph?
+ggplot() +
+  geom_point(data = c(ago18a,I$s), aes(I$s,1), color = "blue")
+
+```
+
+#Figure 3B
+```{r}
+#Subset the Marker Genes from Tanner Data
+ANTH_MARKER <- ANTHER6[ANTHER6$"gene" %in% c("Zm00001d006351","Zm00001d008945","Zm00001d039101","Zm00001d050069"), ]
+
+#Add row names as a column for sorting for each gene
+
+setDT(ANTH_MARKER, keep.rownames = "gene")[]
+
+#Anther length with Marker Genes
+Anther_length_w_M=inner_join(ANTH_MARKER,s3)
+
+#Remove gene names 
+Anther_length_w_M$gene=NULL
+
+#Heatmap the three genes
+vst_cor_M<- as.matrix(cor(Anther_length_w_M, method="spearman"))
+pheatmap(Anther_length_w_M,border_color=NA,labels_row = FALSE,labels_col = F)
+
+```
