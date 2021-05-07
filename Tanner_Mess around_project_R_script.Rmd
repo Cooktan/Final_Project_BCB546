@@ -13,16 +13,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 #Dependencies
 
-library("tidyverse") #
-library("factoextra") #
+library("tidyverse") # v.1.3.0
+library("factoextra") #v. 1.0.7.999
+library("FactoMineR") #v.2.4
+library("readxl") #v. 1.3.1
+library("ggfortify") # v. 0.4.11
 library("FactoMineR") #
-library("readxl") #
-library("ggfortify") #
-library("FactoMineR") #
+library("princurve") #v. 2.1.6
 library("princurve") #
-library("princurve") #
-library("data.table") #
-library("pheatmap") #
+library("data.table") #v. v. 1.14.0
+library("pheatmap") #v. 1.0.12
 ```
 
 ## Reading Data 
@@ -580,7 +580,7 @@ ggsave('./Figures/Figure2_d.png', plot = fig2dextra)
 # Move to the beggining once everything is done
 ? Please verify if any section of this code is duplicated in the sections Readind Data/ Re-shaping Data. also, can you add a brief description of the purpose of this section? 
 
-### Principal component analysis and anther lenght
+### Principal component analysis and anther length
 
 ##### Chiteri 1 c 2 b 5e
 
@@ -662,7 +662,7 @@ autoplot(PCA_256, data = rna4_x2, size = 5, colour= 'anther_size_mm') +
   scale_color_gradient2(low = "gray", high = "black", space = "Lab" ) + 
   theme_bw()
 
-ggsave('pca2.png')
+ggsave('./Figures/pca2.png')
 
 autoplot(PCA_256, data = rna4_x2, size = 2, colour= 'anther_size_mm') +
   geom_line(aes(group = cell)) + 
