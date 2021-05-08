@@ -577,16 +577,14 @@ fig2dextra <- (Unk1 / Rmf / Trps8 / Unk2) + plot_layout(guides = 'collect')
 ggsave('./Figures/Figure2_d.png', plot = fig2dextra)
 ```
 
-# Move to the beggining once everything is done
-? Please verify if any section of this code is duplicated in the sections Readind Data/ Re-shaping Data. also, can you add a brief description of the purpose of this section? 
-
 ### Principal component analysis and anther length
+
 
 ##### Chiteri 1 c 2 b 5e
 
 #### Filtering 
 
-####### <description>
+#######This section uses a different method of data reshaping to obtain the same results under the `Data reshaping` section
 
 ####### Working with `aav6428_Nelms_Table-S1.xlsx` data file and `rna4` dataframe. 
 ####### `aav6428_Nelms_Table-S1.xlsx` includes descriptions and metrics for each experimental unit, `rna4` includes all the read counts in long format, before quality control.
@@ -635,8 +633,7 @@ paste0("We get  12544 genes, against 12527 in the paper. We have 17 more genes")
 rna4_x2$anther_size_mm <- as.numeric(rna4_x2$anther_size_mm)
 ```
 
-? Can you please describe a little further the next section? i.e., which dataframe we used, which is the purpose of the chunk and what the code does.
-
+#Normalizing the counts using the base R function: 'apply'
 ```{r}
 # Uses row sums
 rna4_x3 <- apply(rna4_x2[4:ncol(rna4_x2)], 1, function(i) log10(((i/sum(i))*1000000)+11 ))
@@ -648,9 +645,7 @@ rna4_log3 <- cbind(rna4_x2[,1:3], rna4_log3)
 ```
 
 #### PCA
-? can you add a brief description of these dfs? what we are getting from each
-? Are we adding both to the final submission or just one? If both, please add a breif descrption of the difference between them
-? Change path in first autoplot's ggsave(). Is generating the file in the working directory
+#The code below creates the PCA where the cell replicates are connected with a line for each cell samples i.e . cell
 
 ####### Working with `rna4_log3` and `rna4_2x`` dataframe. This includes...
 
@@ -673,12 +668,11 @@ ggsave('./Figures/pca2.png')
 
 ```
 
-# Move to match the order of the paper when done
-? Is this one for 5e? If so, please add description (4 lines below) 
-### Assign appropriate name <Juan>
+
+### Assign appropriate name Chiteri
 ### Attempt on clustering
 
-####### <description>
+####### The codes below does dataframe preparation for attempting to use k-means clustering to cluster the genes with corresponding cell cycle stages.
 
 #### Filtering
 
@@ -705,16 +699,13 @@ paste0("We get 12817 genes against the 12527 genes in the paper. We have 290 mor
 # Grab Deferentially expressed genes during specific stages
 rna4_c1 <- rna4_272x[, names(rna4_272x) %in% cell_cycle$gene] 
 
-# Grabs the 453 variables we need ? # what are those variables? DE genes
-# 3 genes not found in here ? do we have a mismatch between reported DEG and filtered DEG?
-
 # Add cell, rep, anther length
 rna4_c2 <- cbind(rna4_272xx[, 1:3], rna4_c1)
 ```
 
 #### Normalization and merging
 
-####### TPM normalization with log-transformation, as described at `Re-shaping Data 1.b` 
+####### TPM normalization with log-transformation, as similar to `Re-shaping Data 1.b` but using base R function, apply
 ####### Working with `<add files>`
 
 ``` {r}
@@ -726,26 +717,12 @@ rna4_c4 <- as.data.frame(t(rna4_c3))
 
 # Combine
 rna4_c5 <- cbind(rna4_272xx[,1:3], rna4_c4)
-#write.csv(rna4_274b, file="with_anther_size") ?Is thius necesary? otherwise, delete
-```
-
-#### PCA
-? are we saving this plot? if yes, need to add the ggsave(), if not, just delete the chunk
-####### Working with files `<add>`
-
-```{r}
-# PCA using `rna4_c5`
-PCA_c6 = prcomp(rna4_c5[, -c(1:3)], center = TRUE, scale. = TRUE)
-
-# Plot PCA
-  # Cell-cycle gene by anther_size
-autoplot(PCA_c6, data = rna4_c5, colour = 'anther_size_mm')+ 
-  theme_bw() 
 
 ```
 
 #### K-means with cycle
-? can you please describe a little bit the purpose of this figure, and what the code does? 
+
+The code below was a trial to replicate the clustering of genes with their cell cycle (Fig. 5a) using k-means.
 
 ```{r}
 # K-means with cycle
@@ -758,58 +735,7 @@ ggsave('./Figures/cell_cycle_cluster.png')
 
 ```
 
-? are we using this for the principal curve, or we just keep the one that tanner did? We should define that, because I think having both is redundant 
-#### Principal curve
 
-```{r}
-#fitting principle curve
-#getting the matrix to dataframe
-#get first 10PCA
-c <- as.data.frame(PCA_256$rotation[, 1:10])
-c1 <- rownames_to_column(c, var='gene')
-
-pc1 <-c1 %>% head(arrange(desc(PC1)), n=2000) %>% select(gene)
-pc2 <-c1 %>% head(arrange(desc(PC2)), n=2000) %>% select(gene)
-pc3 <-c1 %>% head(arrange(desc(PC3)), n=2000) %>% select(gene)
-pc4 <-c1 %>% head(arrange(desc(PC4)), n=2000) %>% select(gene)
-pc5 <-c1 %>% head(arrange(desc(PC5)), n=2000) %>% select(gene)
-pc6 <-c1 %>% head(arrange(desc(PC6)), n=2000) %>% select(gene)
-pc7 <-c1 %>% head(arrange(desc(PC7)), n=2000) %>% select(gene)
-pc8 <-c1 %>% head(arrange(desc(PC8)), n=2000) %>% select(gene)
-pc9 <-c1 %>% head(arrange(desc(PC9)), n=2000) %>% select(gene)
-pc10 <-c1 %>% head(arrange(desc(PC10)), n=2000) %>% select(gene)
-
-#create a dataframe with the top 2000 most variable
-top2000 <- data.frame(pc1, pc2, pc3,pc4,pc5,pc6,pc7,pc8,pc9,pc10)
-
-top2k <- top2000$gene
-
-#filter original transformed data
-top_2000a <- rna4_x2[, names(rna4_x2) %in% top2k] 
-
-#top_2000a <- rna4_x2 %>% select(cell, rep, anther_size_mm, names(rna4_x2) %in% top2k)
-
-#Uses row sums
-top_2000b <- apply(top_2000a[1:ncol(top_2000a)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
-
-top_2000c <- as.data.frame(t(top_2000b))
-
-#combine,  find right way to get cell, rep, anther
-#top_2000d <- cbind(rna4_x2[,1:3], top_2000c)
-
-top_pca = prcomp(top_2000c[, 1:ncol(top_2000c)], center=TRUE, scale.=TRUE)
-
-autoplot(top_pca)
-
-##principle curve
-pc <- principal_curve(as.matrix(top_2000c[, 1:ncol(top_2000c)]))
-plot(pc)
-
-pcx <- as.matrix(PCA_256$rotation[, 1:10])
-I=principal_curve(pcx)
-plot(I)
-
-```
 
 ### Transcriptome reorganization during leptotene
 ? Please, add a brief description of the purpose of this figure, as well as the files and dataframes we are using for doing this 
