@@ -1,0 +1,1128 @@
+---
+title: "BCB_Project"
+author: "Juan, Tanner, Chiteri, Yu-Ru, and Sean"
+date: "4/4/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries for this project
+
+```{r}
+#Dependencies
+
+library("tidyverse") # v.1.3.0
+library("factoextra") #v. 1.0.7.999
+library("FactoMineR") #v.2.4
+library("readxl") #v. 1.3.1
+library("ggfortify") # v. 0.4.11
+library("FactoMineR") #
+library("princurve") #v. 2.1.6
+library("princurve") #
+library("data.table") #v. v. 1.14.0
+library("pheatmap") #v. 1.0.12
+library("patchwork") # v 1.0.1
+
+```
+
+## Reading Data 
+
+### 1. Transcript counts
+
+####### Transcript counts are read from the file `GSE121039_AR_scRNAseq_transcript_counts.csv`
+
+####### `GSE121039_AR_scRNAseq_transcript_counts.csv` has counts for 31184 genes in 391 experimental units (cells)  
+
+```{r}
+# Counts
+rna <- read_csv('./Data/GSE121039_AR_scRNAseq_transcript_counts.csv')
+rna <- rename(rna, gene = X1) #rename first column
+```
+
+### 2. Quality control
+
+####### Quality control info taken from the datafile `aav6428_Nelms_Table-S1.xlsx`
+####### `aav6428_Nelms_Table-S1.xlsx` includes descriptions and metrics for each experimental unit
+####### "Quality control" stands for the QC done by Nelms et al. 2019 before running the analysis
+####### "Quality control" is a class variable (PASS / No PASS)
+
+####### Final df "qc" is a vector -as tibble- only including experimental units that pass the quality control   
+
+```{r}
+# Quality control: PASS/FAIL
+
+qc <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
+names(qc)[12] <- 'QC' 
+qc <- qc[qc$QC == "PASS", "Cell Number"] 
+```
+
+### 3. Deferentially expressed genes at specific stages 
+
+####### Names of deg at specific stages from the datafile aav6428_Nelms_Table-S2.xlsx
+####### `aav6428_Nelms_Table-S2.xlsx` includes descriptions and metrics for each deg at specific stages
+####### Includes 456 genes 
+
+####### Final df "deg" is a vector -as tibble- only including gene names    
+
+```{r}
+# Deferentially expressed genes during specific stages
+deg <- readxl::read_excel('./Data/aav6428_Nelms_Table-S2.xlsx')[,1:2]
+names(deg) <- c('gene', 'phase')
+
+# Exclude from deg those genes only expressed in G1 phase
+deg <- deg %>% filter(phase != "G1") %>% select(gene)
+
+paste0("There are ", nrow(deg), " deferentially expresed genes at specific stages of the cellular cycle.")
+```
+
+## Re-shaping Data 
+
+### 1. Transcript counts
+
+####### Working with `rna` dataframe. Longer dataframe
+
+```{r}
+#get into long format
+rna1 <- pivot_longer(rna, cols = starts_with('Cell'))
+```
+
+####### Working with `rna1` dataframe. Separate name.
+
+```{r}
+#separate 'name' into 4 columns, 
+
+rna3 <- separate(rna1, name, into = paste0("y",1:4), sep = " ") %>% 
+  select(!c(y1, y3)) %>% rename(c('cell' = y2, 'rep'= y4, 'count' = value))
+
+```
+
+####### Working with `rna3` dataframe. Filtering rows out based on the `qc` dataframe.
+
+```{r}
+#Filter cells based on QC
+rna4 <- filter(rna3, cell %in% qc$`Cell Number`)
+names(rna4)[1] <- 'gene'
+head(rna4)
+
+paste0("Total number of cells after Quality Control: ", length(unique(as.numeric(rna4$cell))))
+```
+
+##### a. Dataframe for Figure 2A
+####### Working with `rna4` dataframe. Summarizing unique cells in the df.
+
+``` {r}
+# Dataset to use for e.g. Fig. 2A, Fig S4). We need 128 cells to asses reproducibility.
+# pooling cells using sum.
+rna5 <- rna4 %>%  group_by(gene,cell,) %>% summarise(n=n(), sum = sum(count))
+
+paste("There are ", length(unique(as.numeric(rna5$cell))), " unique cells in rna5")
+
+```
+####### Working with `rna5` dataframe. The 144 cells in `rna5` represents cells with and without a technical replicate. Keeping only cells with a technical replicate for further analysis.
+
+``` {r}
+rna6 <- filter(rna5, n > 1)
+
+paste0("There are ", length(unique(as.numeric(rna6$cell))), " cells with a technical replicate in rna6.")
+```
+
+##### b. Dataframe for Normalization
+####### Working with `rna4` dataframe. Reshape the df for general normalization purpose. ####### genes as rows, cells as columns.
+
+####### Steps for normalization:<br/>
+#######    I. Filter underexpressed genes.<br/>
+#######    II. Filtering out genes differentially expressed in specific stages.<br/>
+#######    III. Transcripts Per Million (TPM) normalization.<br/>
+#######    IV. Log-transformation for pseudotime analysis.<br/>
+
+``` {r}
+# Join two columns cell and rep and go wider
+
+rna7 <- rna4 %>%  
+  unite("cell",c(cell, rep), sep = "_") %>% 
+  pivot_wider(names_from = cell, values_from = count, names_prefix = 'cell')
+
+dim(rna7)
+```
+
+####### Working with `rna7` dataframe. Reshape the df to move genes to columns.
+
+``` {r}
+# remove gene title
+rna9 <- rna7 %>% remove_rownames %>% column_to_rownames(var = "gene")
+
+# transpose data frame so cells are rows and genes are columns
+rna9_t <- as.data.frame(t(as.matrix(rna9)))
+```
+
+####### Working with `rna9_t` dataframe. Among cells that pass quality control, select only those with two technical replicates. `cells_after_qc` contains only replicated cells
+
+```{r}
+# Create a vector of cells for filtering purpose
+cells <- as.data.frame(row.names(rna9_t))
+names(cells) <- 'key'
+
+# filter out cells with only one technical replicate 
+cells %>% 
+  separate(key, c('cell', 'rep'), remove = F) %>% 
+  group_by(cell) %>% filter(n() == 2) %>% 
+  ungroup() %>% select(key) -> cells_after_qc
+```
+
+####### Working with `rna9_t` and `cells_after_qc` dataframes. `rna9_t` provides the dataframe with the data which needs to be filtered, whereas `cells_after_qc` works as a filtering criteria (i.e., cells that after passing quality control, have two technical replicates).
+
+####### `rna9_ft`: cells as columns, genes as rows 
+
+```{r}
+# filtering out rna9_t after by technical replicate
+
+rna9_t %>% rownames_to_column() %>% 
+  filter(rowname %in% cells_after_qc$key) %>% 
+  column_to_rownames() -> rna9_f
+
+# Re arranging rna9_f moving cells as columns 
+
+rna9_ft <- as.data.frame(t(as.matrix(rna9_f)))
+rna9_ft %>% rownames_to_column("gene") -> rna9_ft 
+```
+
+###### I. Normalization: filtering by read counts greater than 100
+####### Working with `rna9_ft` dataframe. Normalization requires filter out underexpressed genes.
+
+```{r}
+# Filtering out genes with less than 100 counts across cells 
+
+  # Step 1. Identify transcripts with less 100 reads across cells 
+rna9_ft %>%   
+  arrange(gene) %>% rowwise() %>%  
+  group_by(gene) %>% dplyr::summarise(m = sum(c_across(2:length(rna9_ft)-1))) %>%  
+  filter(m > 100) %>% select(gene) -> exp_genes
+
+  # Step 2. Use info from Step 1 to filter out under expressed genes
+rna_ftf <- as_tibble(rna9_ft[rna9_ft$gene %in% exp_genes$gene,])
+dim(rna_ftf)
+```
+
+###### II. Filtering out genes differentially expressed in specific stages
+####### Working with `rna_ftf` and `deg` dataframes. Remove from `rna_ftf` dataframe genes listed on `deg`, which are those that were deferentially expressed on specific stages in the cellular cycle. 
+
+```{r}
+# Filtering out deg
+
+rna_ftfc <- rna_ftf %>% filter(!gene %in% deg$gene)
+```
+
+###### III. Transcripts Per Million (TPM) normalization.
+####### Working with `rna_ftfc` dataframe. The TPM normalization done by Nelms et al. requires for each gene in each cell, dividing each count by the total number of transcripts in the cell, and multiplying that quotient by 1,000,000. 
+
+####### The resulting dataframe `rna_norm` will be used for most of the analysis done over counts. 
+
+```{r}
+
+# Step 1: divided each individual count by the total counts per cell, and multiply by 1000000 
+
+rna_norm <- as_tibble(rna_ftfc$gene) # tibble genes x 1 for starting filling with normalized data
+
+for (i in 2:length(rna_ftfc)) {
+  a <- (rna_ftfc[,i]/sum(rna_ftfc[,i]))*1000000
+  rna_norm <- cbind(rna_norm, a)
+  a <- NULL
+}
+
+rna_norm <- column_to_rownames(rna_norm, 'value') # for upcoming transposing
+```
+
+###### IV. Log-transformation for pseudotime analysis.
+####### Working with `rna_norm` dataframe. For pseudotime estimation, counts data needs to be transformed. For doing so, 11 was added to each TPM normalized value for moving away from zero, then normalized data was log-transformed. 
+
+```{r}
+# Log transformation after add 11
+
+rna_log <- log10(rna_norm[,1:length(rna_norm)] + 11 )
+
+rna_log[1:5, 1:5]
+
+rna_final <- as.data.frame(t(as.matrix(rna_log)))
+rna_final[1:5, 1:5]
+
+```
+
+## Analysis and figures
+
+### Principal Component Analysis 
+####### Working with `rna_final` dataframe. PCA was performed to analyze grouping patterns in gene expression, among cells with technical replicates that passed the quality control.   
+
+```{r}
+# Run PCA on normalized data
+
+PCA = prcomp(rna_final, center=TRUE, scale.=FALSE)
+summary(PCA)
+
+# Plot PC1 and PC2
+
+PCA$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x = PC1, y = PC2, size=100, alpha = 0.7)) + 
+  geom_point() +
+  theme_light() +
+  theme(legend.position = "None")
+
+ggsave('pca2.jpeg')
+```
+
+### Principal Component Analysis for Pseudotime 
+
+####### Working with `rna_final` dataframe. PCA was performed to analyze grouping patterns in gene expression. However, given that cells were sampled at different stages, the grouping pattern can also   estimate pseudotime.
+Pseudotime calculation was done by using PCA.
+
+####### For pseudotime, from Normalized genes (`rna_final``) and then filter the 2000 genes with highest variance.
+
+#### Data preparation
+
+####### Working with files `Updated_S1.txt`, `aav6428_Nelms_Table-S3.csv`, and dataframe `rna_final`.
+
+####### `Updated_S1.txt` contains Anther size data, used as a proxy of development.
+####### `aav6428_Nelms_Table-S3.csv` contains the amount of variance explained by pseudotime for each gene.
+####### `rna_final` contains log-transformed counts after normalization. 
+
+```{r}
+# Create a df containing anther size
+Anther_size = read.table("./Data/Updated_S1.txt", header= T)
+
+# Transpose `rna_final`
+rna_final_Tanner= as.data.frame(t(rna_final)) 
+# Add a column label to rownames
+setDT(rna_final_Tanner, keep.rownames = "gene")[]
+
+# Create a df containing variance explained by pseudotime  
+s3 = read.csv("./Data/aav6428_Nelms_Table-S3.csv", header = T)
+
+# Merge counts to the variance explained by pseudotime, using gene as an index
+  # Make a combined table
+Variance2000transcripts = inner_join(rna_final_Tanner, s3 )
+
+  # Order combined table by variance and then slice higher 2000
+Variance2000transcripts %>% arrange(desc("Gene score (% variance explained by pseudotime)")) %>% 
+  select(1:258) %>% 
+  top_n(2000) -> y # store the sliced as a df `y`
+
+#Remove gene id column
+y$gene=NULL
+```
+
+#### Pseudotime analysis
+
+##### Principal Component Analysis 
+
+
+####### Runs a PCA on the normalized count data for the 2000 highest variance genes for the 144 cells that passed QC and takes the first 10 principal components for pseudotime determination.
+```{r}
+# PCA with prcomp of the 2000 genes with the highest variance
+PCA2 = prcomp(y, center=TRUE, scale.=FALSE)
+summary(PCA)
+plot(PCA2)
+names(PCA2)
+
+# PCA2 as a matrix while selecting the X values from the PCA. This will take the first 10 Principal components for the pseuodtime curve.
+PCAX = as.matrix(PCA2$x [,1:10])
+PCAX
+```
+
+##### Principal Curve
+
+####### The principal curve was calculated to describe the pseudotime from expression values in 144 cells
+
+```{r}
+# Calculate the values for the principal curve, out of PCAX
+I = principal_curve(PCAX)
+names(I)
+
+# Plot Principal Curve
+Pseudocurve=plot(I$s, xlim=c(-20,10))
+ggsave('./Figures/Pseudotime.jpeg', plot=Pseudocurve)
+
+# Overlay principle curve for PCA in fig.1. Makes Fig. 2A
+  ## Create two df, 
+        # df1 for the PC calculated in PCA
+        # df2 for the s calculated by principal curve
+
+df1 = as.data.frame(PCA$x)
+df2 = as.data.frame(I$s)
+
+  ## Plot all both figures together  
+
+df1 %>% 
+  ggplot(aes(x =PC1, y = PC2)) + 
+  geom_point() +
+  geom_smooth(data = df2, aes(x = PC1, y = PC2)) +
+  theme(legend.position = "none")+xlim(-20,30)
+
+ggsave('./Figures/Pseudotime_PCA_overlay.jpeg')
+```
+
+### Pseudotime analysis and gene expression: Heatmap
+
+
+#### Data preparation
+
+####### Working with `with_anther_size` data file, and `qc` and `s3` dataframe. 
+#######`with_anther_size.csv` takes the normalized expression data in RNA_final and merges it with anther size thus, rep, cell, anther length and expression data are in the same file.
+
+####### `qc` is a vector of cells that passed Quality COntrol (classification provided by the authors); `s3` is a 3046x2 dataframe with the explained variance by pseudotime for 3046 genes
+
+```{r}
+# Create a df from `with_anther_size`
+ANTHER1 = read.csv("./Data/with_anther_size.csv", header=T)
+
+# Sort by Anther size in ascending order
+ANTHER2 = ANTHER1[order(ANTHER1$anther_size_mm),]
+ANTHER3 = as.tibble(ANTHER2)
+
+
+# Transpose ANTHER3
+ANTHER4 = t(ANTHER3)
+
+# Remove rows X, cell, rep,anther_size_mm
+ANTHER5 = ANTHER4[-c(1,2,3,4),]
+ANTHER6 = as.data.frame(ANTHER5) # turn `ANTHER5` into a data.frame object
+
+# Add row names as a column for sorting
+setDT(ANTHER6, keep.rownames = "gene")[]
+
+# Add Anther length to each cell. 
+  # For comparing 144 cells 
+Anther_length_w_genes = inner_join(ANTHER6, s3) # 3040 genes and 144 cells
+Anther_length_w_genes$gene=NULL # Remove gene names 
+
+# Transpose `Anther_length_w_genes`. 
+  # For comparing 3040 genes  
+Anther_length_w_genes1 = (t(Anther_length_w_genes)) 
+```
+
+#### Heatmap
+
+####### Two heat maps are produced from expression data of 3040 genes. One compares the relationship of the genes while the other compares the relationships of the cells. To match the Nelms et al., 2019 analysis, pseudotime needs to  be placed in X-axis and compared against gene expression values.
+
+
+```{r}
+# Make heatmap ordered by anther length
+vst_cor<- as.matrix(cor(Anther_length_w_genes1, method = "spearman")) # for comparing 3040 genes
+vst_cor2<- as.matrix(cor(Anther_length_w_genes, method = "spearman")) # for comparing 144 cells
+
+# Compares 3040 genes. 
+Heatmap3040= pheatmap(vst_cor, 
+         border_color = "white", 
+         labels_col = NA, 
+         labels_row = "3040 genes", 
+         treeheight_row = 0, 
+         treeheight_col = 0, 
+         cluster_rows = 2, 
+         cluster_cols = 2)
+
+ggsave('./Figures/Heatmap_3040_genes.jpeg', plot=Heatmap3040)
+
+# Compares 144 Cells
+Heatmap144=pheatmap(vst_cor2,
+         border_color = "white",
+         labels_col = NA, 
+         labels_row = NA, 
+         treeheight_row = 0, 
+         treeheight_col = 0, 
+         cluster_rows = 2, 
+         cluster_cols = 2)
+
+ggsave('./Figures/Heatmap_144.jpeg', Heatmap144)
+```
+
+#### Additional figures for 2D
+
+For the right hand-side of the heatmap. The starting file has counts of rna before log transformation. Given that genes reported in the paper turned put to be filtered out due to low expression,we took the data file even before filtering those genes, re-normalized it, and genes of interest were filtered
+
+####### Working with `rna9_ft`. Includes 256 replicated cells and counts for 31184 genes.
+
+##### I. Re - Normalization
+
+####### We started looking for the described genes in the filtered dataframe `rna_norm`, but given they were not founded there, we searched for those genes in dataframes before filtering.
+
+```{r}
+# Call rna counts before filtering out under-expressed expressed genes
+
+fig2 <- as.tibble(rna9_ft) 
+
+# TPM normalization as describe in `Re-shaping Data 1.b.Dataframe for Normalization`
+
+fig2df <- as.tibble(fig2$gene)
+for (i in 2:length(fig2)) {
+  a <- (fig2[,i] / sum(fig2[,i]))*1000000
+  fig2df <- cbind(fig2df, a)
+  a <- NULL
+}
+```
+
+##### II. Filtering specific genes
+
+####### Working with `fig2df` dataframe and `Table.S1`. `fig2df` are the re-normalized transcript counts, while `Table.S1` is the file from where we extract anther lenght.   
+####### Filtering counts file for getting genes Rps4a, Unk1, Unk2, Rmf, Trps8 into a new datafile. Rpl38e Gene Identifier was not founded
+####### Reshape datafile and Column `Cell Number` modified to match to Table.S1
+####### Merge filtered df to anther length (mm) from Table.S1
+
+``` {r}
+# 1. filtering
+Table.S1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+fig2df <- fig2df %>%  
+  filter(value %in% c('Zm00001d027037', 'Zm00001d039101', 'Zm00001d009343', 'Zm00001d050069', 'Zm00001d013377')) 
+
+# 2. Reshaping datafile
+fig2df %>% 
+  column_to_rownames("value") %>% t() %>% 
+  as.data.frame() %>% 
+  rownames_to_column('Cell') %>% 
+  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig2ddf
+
+# 2. Modify column `Cell Number` 
+fig2ddf$`Cell Number` <- parse_number(fig2ddf$`Cell Number`) 
+
+# 3. Merge anther length to datafile 
+fig2ddf %>%  
+  left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> fig2ddf_sum
+```
+
+##### III. Plotting the gene expression vs anther size
+
+####### Working with `fig2ddf_sum`. Dataframe generated in the step before.
+
+####### Four plots combined afterwards. "Rpl38e" and "Rps4a" were discarded given low counts or not counted;
+########    aes() includes three terms: Anther size (our x, continuous), 
+########    Gene name (it is actually a column of counts, continuous)
+########    Stage (categorical) 
+########    geom_point plots counts vs anther size
+########    geom_smooth plots the overlaid smoothed curve
+########    References added and edited by labs() and theme() options
+
+```{r}
+# Define breaks for different stages for a given anther size
+fig2ddf_sum$Stage <- cut(fig2ddf_sum$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf), 
+    labels = c('Mitotic expansion',
+               "AR/PMC transition",
+               'PMC/Pr1',
+               "Pr1/PR2 transition",
+               'End of Early meoitic prophase'))
+
+# Plots
+
+Unk1 <- 
+  fig2ddf_sum %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d027037, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Zip1") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+  
+Rmf <- fig2ddf_sum %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d039101, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Rmf") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Rps4a <- fig2ddf_sum %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d009343, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Rps4a") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Trps8 <- 
+  fig2ddf_sum %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d050069, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Trps8") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Unk2 <- 
+  fig2ddf_sum %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d013377, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Unk2") + xlab('Anther length (mm)') + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+# The following code calls the patchwork's grammar for creating a merged plot and combining legends
+
+fig2dextra <- (Unk1 / Rmf / Trps8 / Unk2) + plot_layout(guides = 'collect')
+
+ggsave('./Figures/Figure2_d.png', plot = fig2dextra)
+```
+
+# Move to the beginning once everything is done
+
+### Principal component analysis and anther length
+
+
+#### Filtering 
+
+
+####### Working with `aav6428_Nelms_Table-S1.xlsx` data file and `rna4` dataframe. 
+####### `aav6428_Nelms_Table-S1.xlsx` includes descriptions and metrics for each experimental unit, `rna4` includes all the read counts in long format, before quality control.
+```{r}
+# Read `aav6428_Nelms_Table-S1.xlsx`
+table1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
+
+# Rename the columns; replace spaces with underscore and lower case
+table1.1 <- table1 %>%  
+  select_all(~gsub("\\s", "_", .)) %>% 
+  select_all(tolower)
+
+# Rename anther size column name
+colnames(table1.1)[3] <- 'anther_size_mm'
+colnames(table1.1)[1] <- 'cell'
+
+# Filter only cells that passed Quality Control
+table1.2 <- table1.1 %>%  filter(quality_control == "PASS") %>%  select(cell, anther_size_mm)
+
+# Doing `rna4` wider
+rna4_wide <- rna4 %>% pivot_wider(names_from = gene, values_from = count)
+
+# Merging anther size from `aav6428_Nelms_Table-S1.xlsx` to rna4 
+rna4_anther <- merge(rna4_wide, table1.2, by='cell') %>% select(cell, rep, anther_size_mm, everything()) %>% arrange(as.numeric(cell))
+
+# Filter for keeping only replicated cells
+rna4_replicated <- rna4_anther %>% group_by(cell) %>% filter(n()==2) %>%  ungroup() 
+
+# Make anther_size_mm as character for grouping purposes
+rna4_replicated$anther_size_mm <- as.character(rna4_replicated$anther_size_mm)
+
+# Filter whose sum across samples is > 100
+rna4_filtered <- rna4_replicated[4:ncol(rna4_replicated)][, apply(rna4_replicated[4:ncol(rna4_replicated)],2,sum) > 100]
+
+paste0("We get 256 observations (replicated cells). After filtering, we obtain 12912 genes, 10 shy of 12902 from the paper")
+
+# Introduce the cell, rep, anther_size
+rna4_x <- cbind(rna4_replicated[1:3], rna4_filtered )
+
+# Filter the 375 genes deferentially expressed during specific stages
+rna4_x2 <- rna4_x[, !names(rna4_x) %in% deg$gene] 
+
+paste0("We get  12544 genes, against 12527 in the paper. We have 17 more genes")
+
+# Make anther_size_mm a character for grouping purposes
+rna4_x2$anther_size_mm <- as.numeric(rna4_x2$anther_size_mm)
+```
+
+
+
+```{r}
+# Uses row sums
+rna4_x3 <- apply(rna4_x2[4:ncol(rna4_x2)], 1, function(i) log10(((i/sum(i))*1000000)+11 ))
+
+rna4_log3 <- as.data.frame(t(rna4_x3))
+
+#combine
+rna4_log3 <- cbind(rna4_x2[,1:3], rna4_log3)
+```
+
+#### PCA
+
+
+####### Working with `rna4_log3` and `rna4_2x`` dataframe. 
+```{r}
+PCA_256 = prcomp(rna4_log3[, -c(1:3)], center = TRUE, scale. = FALSE)
+
+autoplot(PCA_256, data = rna4_x2, size = 5, colour= 'anther_size_mm') +
+  geom_line(aes(group = cell)) + 
+  scale_color_gradient2(low = "gray", high = "black", space = "Lab" ) + 
+  theme_bw()
+
+ggsave('./Figures/pca2.png')
+
+autoplot(PCA_256, data = rna4_x2, size = 2, colour= 'anther_size_mm') +
+  geom_line(aes(group = cell)) + 
+  scale_color_gradient2(low = "gray", high = "black", space = "Lab" ) + 
+  theme_bw()
+
+ggsave('./Figures/pca2.png')
+
+```
+
+# Move to match the order of the paper when done
+
+### Assign appropriate name <Juan>
+### Attempt on clustering
+
+####### <description>
+
+#### Filtering
+
+####### Working with `aav6428_Nelms_Table-S2.xlsx` datafile, and `rna4_anther` and `deg` dataframes.
+####### Add description of df's <Juan>
+```{r}
+# Extract data that is for clustering on Deferentially expressed genes during specific stages
+cell_cycle <- readxl::read_excel('./Data/aav6428_Nelms_Table-S2.xlsx')[,1:2]
+names(cell_cycle) <- c('gene', 'phase')
+
+# Filter whose sum across samples is > 100
+rna4_272 <- rna4_anther[4:ncol(rna4_anther)][, apply(rna4_anther[4:ncol(rna4_anther)],2,sum) > 100]
+
+paste0("We get 272 observations, with 13187 genes, 285 shy of 12902 from the paper")
+
+# Introduce the cell, rep, anther_size
+rna4_272x <- cbind(rna4_anther[1:3], rna4_272 )
+
+# Filter the 375 genes deferentially expressed genes during specific stages
+rna4_272xx <- rna4_272x[, !names(rna4_272x) %in% deg$gene] 
+
+paste0("We get 12817 genes against the 12527 genes in the paper. We have 290 more.")
+
+# Grab Deferentially expressed genes during specific stages
+rna4_c1 <- rna4_272x[, names(rna4_272x) %in% cell_cycle$gene] 
+
+# Grabs the 453 variables we need ? # what are those variables? DE genes
+# 3 genes not found in here ? do we have a mismatch between reported DEG and filtered DEG?
+
+# Add cell, rep, anther length
+rna4_c2 <- cbind(rna4_272xx[, 1:3], rna4_c1)
+```
+
+#### Normalization and merging
+
+####### TPM normalization with log-transformation, as described at `Re-shaping Data 1.b` 
+####### Working with `<add files>`
+
+``` {r}
+# Normalization
+rna4_c3 <- apply(rna4_c2[4:ncol(rna4_c2)], 1,function(i) log10(((i/sum(i))*1000000)+11 ))
+
+# Transpose Normalized data
+rna4_c4 <- as.data.frame(t(rna4_c3))
+
+# Combine
+rna4_c5 <- cbind(rna4_272xx[,1:3], rna4_c4)
+#write.csv(rna4_274b, file="with_anther_size") ?Is thius necesary? otherwise, delete
+```
+
+#### PCA
+####### Working with files `<add>`
+
+```{r}
+# PCA using `rna4_c5`
+PCA_c6 = prcomp(rna4_c5[, -c(1:3)], center = TRUE, scale. = TRUE)
+
+# Plot PCA
+  # Cell-cycle gene by anther_size
+autoplot(PCA_c6, data = rna4_c5, colour = 'anther_size_mm')+ 
+  theme_bw() 
+
+```
+
+#### K-means with cycle
+
+
+```{r}
+# K-means with cycle
+
+# K-means plot
+
+set.seed(20)
+autoplot(kmeans(rna4_c5[, -c(1:3)], 6), data = rna4_c5)
+ggsave('./Figures/cell_cycle_cluster.png')
+
+```
+
+
+
+
+
+### Transcriptome reorganization during leptotene
+
+#### Figure 3A
+##### Figures 3A and 3B are to show that there is differential gene expression in the leptotene phase of prophase which is known as Pr1 and Pr2. In these figures marker genes are used to show upregulated genes (RMF, C3H3, Trps8) in comparison to downregulated genes (Ago18a, Rpl38e) through pseudotime and anther development
+
+##### Normalization
+####### TPM normalization as describe in `Re-shaping Data 1.b.Dataframe for Normalization` 
+```{r}
+# Call rna counts before filtering out low expressed genes
+Marker_Fig <- as.tibble(rna9_ft) 
+
+# Normalization
+Marker_Genes_Pr <- as.tibble(fig2$gene)
+for (i in 2:length(fig2)) {
+  a <- (fig2[,i]/sum(fig2[,i]))*1000000
+  Marker_Genes_Pr <- cbind(Marker_Genes_Pr, a)
+  a <- NULL
+}
+
+# Filter normalized counts belonging to the genes Ago18a, Rpl38e, Rmf, C3h3, Trps8
+Marker_Genes_Pr <- Marker_Genes_Pr %>%  
+  filter(value %in% c('Zm00001d006351', 'Zm00001d008945', 'Zm00001d039101', 'Zm00001d050069'))
+```
+
+##### Normalize and Model PrMarker
+
+
+```{r}
+# Reshaping data
+Marker_Genes_Pr %>%
+  column_to_rownames("value") %>% t() %>%
+  as.data.frame() %>%
+  rownames_to_column('Cell') %>%
+  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> Marker_Genes_Pr
+
+# Modify column `Cell Number`
+Marker_Genes_Pr$`Cell Number` <- parse_number(Marker_Genes_Pr$`Cell Number`)
+
+# Merge anther length to datafile
+Marker_Genes_Pr %>%  
+  left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> Marker_Genes_Pr_Merge
+```
+
+##### Plotting genes by anther size
+
+####### Working with `<include dataframes/datasets>`
+
+```{r}
+# Define breaks for different stages for a given anther size
+Marker_Genes_Pr_Merge$Stage <- cut(Marker_Genes_Pr_Merge$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf),
+    labels = c('Mitotic expansion',
+               "AR/PMC transition",
+               'PMC/Pr1',
+               "Pr1/PR2 transition",
+               'End of Early meoitic prophase'))
+
+#Set Plot for each gene
+ago18a <- Marker_Genes_Pr_Merge %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d006351 , color = Stage)) +
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "ago18a") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+
+RMF <- Marker_Genes_Pr_Merge %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d008945 , color = Stage)) +
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "RMF") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+C3H3 <- Marker_Genes_Pr_Merge %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d039101, color = Stage)) +
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "C3H3") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+Trps8 <-
+  Marker_Genes_Pr_Merge %>%
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d050069, color = Stage)) +
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Trps8") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0))
+
+# The following code calls the patchwork's grammar for creating a merged plot and combining legends
+
+Figure3_A <- (ago18a / RMF / C3H3 / Trps8) + plot_layout(guides = 'collect')
+? #I noticed Rmf data looks really weird, would you mind to try a straight normalization of the whole thing before any filter, to see if the pattern we are looking for shows up? Of course, this is not necesary, just come up to my mind when looking at the figure.
+ggsave('./Figures/Figure3_A.png', plot = Figure3_A)
+```
+
+#### Figure 3B
+
+##### Filtering data
+```{r}
+# Subset the Marker Genes from Anther data - RMF Gene is Removed by QC
+
+ANTH_MARKER <- ANTHER6[ANTHER6$"gene" %in% c("Zm00001d006351","Zm00001d008945","Zm00001d039101","Zm00001d050069"), ]
+
+# Add row names as a column for sorting for each gene
+setDT(ANTH_MARKER, keep.rownames = "gene")[]
+
+# Anther length with Marker Genes
+Anther_length_w_M = inner_join(ANTH_MARKER, s3)
+
+# Rename genes
+Anther_length_w_M$gene <- c('Ago18a', 'Trps8', 'C3H3')
+
+# Gene names as rownames
+Anther_length_w_M <- Anther_length_w_M %>% column_to_rownames('gene')
+```
+
+##### Plotting a heatmap
+``` {r}
+# Heatmap the three genes
+jpeg(file="./Figures/figure_3_b.jpg")
+heatmap(as.matrix(Anther_length_w_M[,-273]), Colv = NA, Rowv = NA)
+dev.off()
+
+```
+
+
+### Global view of transcriptional regulation during germinal differentiation
+
+#### Figure 4b
+Getting data for figures 4 b
+
+```{r}
+# Required data frames. From "Table.S4" we need gene names for Clusters 5 and 6  
+
+Table.S4 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S4.xlsx')
+names(Table.S4) <- c('Gene', 'Category', 'Gene_name', 'Cluster', 'Meiocytes_Exp') 
+
+cluster_5 <- Table.S4 %>% filter(Cluster == 5) %>% select(Gene)
+cluster_6 <- Table.S4 %>% filter(Cluster == 6) %>% select(Gene)
+
+# Load Table.S1, for getting anther length
+
+Table.S1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = "Table S1")
+
+# Checking filters, headers and some values
+Table.S1 %>% 
+  filter(!`Cell cycle phase` == "N.D.") %>% droplevels() %>% 
+  select(`Cell Number`, `Plant Number`, `Cell cycle phase`, `Anther size (mm)`) %>% 
+  arrange(match(`Cell cycle phase`, c("G1", "G1/S", "S", "G2/M", "M", "mei")))
+```
+Dataframe for Figure 4b
+Figure 4 b plots Transcripts per million vs pseudotime. Given Pseudotime was not obtained,
+we used anther length as a proxy of the developmental stage.
+
+To re create this figure, first we need to pick up significant genes in Clusters 5 and 6 
+from the normalized counts, before log transformation.
+
+```{r}
+# filter rna_norm for getting genes in clusters 5 and 6 
+# reshape filtered df: move genes to columns
+# Separate the cell key into two columns
+
+rna_norm %>% 
+  rownames_to_column("gene") %>% 
+  filter(gene %in% c(cluster_5$Gene, cluster_6$Gene)) %>% 
+  column_to_rownames("gene") %>% t() %>% 
+  as.data.frame() %>% 
+  rownames_to_column('Cell') %>% 
+  separate(Cell, into = c('Cell Number', 'Rep'), sep = "_") -> fig4
+```
+
+After filtering genes, column `Cell Number` is modified for allowing match its name to 
+Table.S1, from where we get `Anther Length (mm)`
+
+```{r}
+# Consider 
+fig4$`Cell Number` <- parse_number(fig4$`Cell Number`) 
+
+fig4 %>%  
+  left_join(., Table.S1[,c(1, 3)], by = "Cell Number") -> fig4t
+```
+
+Plotting Afd1/Rec8 and Zyp1
+
+```{r}
+library(patchwork) # Patchwork allows a nicer syntax for combining multiple ggplots
+
+# Define limits in anther size for Developmental stage, stored as `$Stage`
+fig4t$Stage <- cut(fig4t$`Anther size (mm)`, c(0, 0.75, 1.1, 1.3, 1.4, Inf), 
+    labels = c('Mitotic expansion',
+               "AR/PMC transition",
+               'PMC/Pr1',
+               "Pr1/PR2 transition",
+               'End of Early meoitic prophase'))
+
+# Two plots combined afterwards. "Afd1/Rec8" and "Zip1";
+# aes() includes three terms: Anther size (our x, continuous), 
+#                             Gene name (it is actually a column of counts, continuous)
+#                             Stage (categorical) 
+# geom_point plots counts vs anther size
+# geom_smooth plots the overlaid smoothed curve
+# references added and edited by labs() and theme() options
+
+fig4.b.1 <- fig4t %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d039133, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Afd1/Rec8", caption = "Cluster 5 \nGradual Upregulation") + xlab(NULL) + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(size = 8, face = "italic"))
+
+fig4.b.2 <- fig4t %>% 
+  ggplot(aes(x = `Anther size (mm)`, y = Zm00001d025575, color = Stage)) + 
+  geom_point() +
+  geom_smooth(color = 'red', se = F) +
+  labs(title = "Zip1", caption = "Cluster 6 \nLate Upregulation") + xlab('Anther length (mm)') + ylab("TPM") +
+  theme_bw() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.caption = element_text(size = 8, face = "italic"))
+
+# The following code calls the patchwork's grammar for creating a merged plot and combining legends
+
+fig4b <- (fig4.b.1 / fig4.b.2) + plot_layout(guides = 'collect')
+
+ggsave('./Figures/Figure4_b.png', plot = fig4b)
+
+```
+#### Figure 4.d
+
+This figure was generated after running manual analysis usign by  the webtool AgriGO V2.0.
+Gene names from each cluster where taken from Table.S4, then Singular Enrichment Analysis was performed by cluster, using as reference "Maize AGPv4 (Maize-GAMER)". Genes with GO terms associated to the only word
+"translation" where selected for this analysis (in genes_clust.txt).
+
+```{r}
+# Call genes_clust for getting genes present in each gene cluster by unsupervised clustering
+
+clust <- read_delim(file = './Data/genes_clust.txt', delim = '\t', col_names = T)
+
+# Create the dataframe for figure 4d: Counts of occurrences of differentially expressed genes in each cluster
+
+clust %>% 
+  group_by(Cluster, Name) %>% 
+  summarise(n = n()) %>%
+  group_by(Cluster) %>%
+  summarise(n = n()) %>%
+  add_column(total = c(560, 507, 275, 
+                       108, 412, 129)) %>%
+  mutate(percent = n/total*100) -> fig4d
+
+fig4d
+```
+
+#### Bar plot for gene counts in each cluster 
+```{r}
+f4d <- ggplot() + 
+  geom_col(data = fig4d, aes(x= Cluster, y = percent, fill = 'pink')) +
+  geom_hline(yintercept = (sum(fig4d$n)/3046*100), linetype = 'dashed') +
+  scale_x_continuous(breaks = 1:6) +
+  geom_text() +
+  annotate("text", label = paste0("Expected translation GO temrms \nif distributed at random: ", 
+                                  round(sum(fig4d$n)/3046*100, 2), " %"),
+           x = 5, y = 13) +
+  labs(title = "Figure 4.D", 
+       subtitle = "Genes involved in translation GO term for each cluster", 
+       y = "% translation genes") +
+  theme_bw() +
+  theme(legend.position = 'none', 
+        plot.subtitle = element_text(face = "italic"))
+
+f4d  
+ggsave('./Figures/Figure4_d.png', plot = f4d)
+```
+
+### Cell cycle-regulated gene expression in mitosis and meiosis
+
+#### Expressed genes at different stages
+
+
+##### Filtering
+
+```{r}
+### Figure 5A
+# Extract the expresses genes information in the table_S2
+Table_S2 <- read_excel("./Data/aav6428_Nelms_Table-S2.xlsx")
+
+#str(Table_S2)
+# Modify colnames
+colnames(Table_S2) <- c("gene", "Cell_cycle_phase",  "Meiotic_expression_level", "Gene_discription")
+
+# Turn Cell_cycle_phase into a factor
+Table_S2$Cell_cycle_phase <- as.factor(Table_S2$Cell_cycle_phase)
+dim(Table_S2)
+
+# Get a vector of DEG in meiotic cycle
+MEG <- Table_S2$gene  
+length(MEG)
+
+? #I think this is a normalization step, but, I'm sorry, I'm burnt. can you please make a comment on this?
+
+rna_ftfc1 <- rna_ftf
+rna_norm1<- as.tibble(rna_ftf$gene)
+for (i in 2:length(rna_ftf)) {
+  a <- (rna_ftf[,i]/sum(rna_ftf[,i]))*1000000
+  rna_norm1 <- cbind(rna_norm1, a)
+  a <- NULL
+}
+rna_norm1 <- column_to_rownames(rna_norm1, 'value')
+rna_norm1 <- log10(rna_norm1[,1:length(rna_norm1)] + 11 )
+rna_norm_456 <- rna_norm1 %>% rownames_to_column(var = "Gene") %>% filter(Gene %in% MEG) #%>% select(!Gene)
+dim(rna_norm_456)
+```
+
+##### PCA
+
+####### Principal component analysis on `rna_norm_456` dataframe
+
+```{r}
+# PCA of 448 genes after filtering MEG out from rna_norm1
+PCA_figure5a = prcomp(rna_norm_456[,-1], center = TRUE, scale. = TRUE)
+
+# Filter Table_S2 to get genes.... (are these deg?)
+Table_S2.1 <- Table_S2 %>% 
+  filter (gene %in% rna_norm_456$Gene)
+
+# Plotting PCA
+PCA_figure5a$x %>% 
+  as.data.frame %>%
+  mutate(phase = Table_S2.1$Cell_cycle_phase) %>% 
+  ggplot(aes(x = PC1, y = PC2)) + 
+  geom_point(aes(col=phase)) +
+  labs(title="Principal component plot of cell cycle–regulated genes", 
+       subtitle="Figure 5A")
+ggsave("./Figures/Figure5_A.png")
+```
+
+#### Proportion of cells assigned to each cell-cycle
+
+
+#### Filtering
+
+```{r}
+### Figure 5C
+
+# Read `aav6428_Nelms_Table-S1.xlsx`
+Table_S1 <- read_excel("./Data/aav6428_Nelms_Table-S1.xlsx",sheet = "Table S1")
+dim(Table_S1)
+colnames(Table_S1)
+
+# Filter Table_S1
+Table_S1.1 <- Table_S1[,c(1, 3, 13, 14)]
+# Rename columns
+colnames(Table_S1.1) <- c("cell", "Anther_length", "Expression_stage", "Cell_cycle_phase")
+
+# Turn $cell and $cell_cycle_phase as factors
+Table_S1.1$cell <- as.factor(Table_S1.1$cell)
+Table_S1.1$Cell_cycle_phase <- as.factor(Table_S1.1$Cell_cycle_phase)
+```
+
+
+#### Plotting
+
+```{r}
+# Assign colors for the plot
+cbp1 <- c("#999999", "#56B4E9", "#C3D7A4","#009E73","#293352", "#0072B2")
+
+# Filter Table_S1.1 and plotting
+Table_S1.1 %>% 
+  filter(!Cell_cycle_phase == "N.D.") %>% 
+  droplevels() %>% 
+  mutate(anther_length = cut(Anther_length, breaks = c(0.2, 0.4, 0.6, 0.85, 1.1, 1.25, 1.4, 1.6))) %>%
+  ggplot()+
+  geom_bar(aes(x = anther_length, 
+               fill = Cell_cycle_phase), 
+           position = "fill", width = 0.5) +
+  scale_fill_manual(values = cbp1) +
+  labs(title="Estimated proportion of cells assigned to each cell-cycle",
+       subtitle="Figure 5C")
+
+ggsave("./Figures/Figure5_C.png")
+```
