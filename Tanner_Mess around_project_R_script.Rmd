@@ -23,6 +23,8 @@ library("princurve") #v. 2.1.6
 library("princurve") #
 library("data.table") #v. v. 1.14.0
 library("pheatmap") #v. 1.0.12
+library("patchwork") # v 1.0.1
+
 ```
 
 ## Reading Data 
@@ -273,7 +275,7 @@ ggsave('pca2.jpeg')
 
 ### Principal Component Analysis for Pseudotime 
 
-####### Working with `rna_final` dataframe. PCA was performed to analyze grouping patterns in gene expression. However, given that cells were sampled at different stages, the grouping pattern can also be use to the estimate of pseudotime.
+####### Working with `rna_final` dataframe. PCA was performed to analyze grouping patterns in gene expression. However, given that cells were sampled at different stages, the grouping pattern can also   estimate pseudotime.
 Pseudotime calculation was done by using PCA.
 
 ####### For pseudotime, from Normalized genes (`rna_final``) and then filter the 2000 genes with highest variance.
@@ -283,7 +285,7 @@ Pseudotime calculation was done by using PCA.
 ####### Working with files `Updated_S1.txt`, `aav6428_Nelms_Table-S3.csv`, and dataframe `rna_final`.
 
 ####### `Updated_S1.txt` contains Anther size data, used as a proxy of development.
-####### `aav6428_Nelms_Table-S3.csv` contains the amount of varaince explained by pseudotime for each gene.
+####### `aav6428_Nelms_Table-S3.csv` contains the amount of variance explained by pseudotime for each gene.
 ####### `rna_final` contains log-transformed counts after normalization. 
 
 ```{r}
@@ -315,38 +317,23 @@ y$gene=NULL
 
 ##### Principal Component Analysis 
 
-? Is the next right? It seems like the PCA plot looks... `awful` haha. I noticed the order is:
 
-do PCA2
-plot PCA2
-
-in the comment, mention PCA10 (should this be PCA2, getting the first 10 PC?)
-do PCAX using PCA2 from 1 to 10
-Is that correct?
-
-In addition to that, would yo mind to include a brief description of this section? I mean, what is the purpose of this step
-
-####### <description>
+####### Runs a PCA on the normalized count data for the 2000 highest variance genes for the 144 cells that passed QC and takes the first 10 principal components for pseudotime determination.
 ```{r}
-# PCA with prcomp
+# PCA with prcomp of the 2000 genes with the highest variance
 PCA2 = prcomp(y, center=TRUE, scale.=FALSE)
 summary(PCA)
-PCA2$x %>% 
-  as.data.frame %>%
-  ggplot(aes(x = PC1, y = PC2)) + 
-  geom_point()
-
 plot(PCA2)
 names(PCA2)
 
-# PCA 10 as a matrix while selecting the X values from the PCA
+# PCA2 as a matrix while selecting the X values from the PCA. This will take the first 10 Principal components for the pseuodtime curve.
 PCAX = as.matrix(PCA2$x [,1:10])
 PCAX
 ```
 
 ##### Principal Curve
 
-####### The principal curve was calculated to describe the pseudotime for each cell
+####### The principal curve was calculated to describe the pseudotime from expression values in 144 cells
 
 ```{r}
 # Calculate the values for the principal curve, out of PCAX
@@ -354,8 +341,8 @@ I = principal_curve(PCAX)
 names(I)
 
 # Plot Principal Curve
-plot(I$s, xlim=c(-20,10))
-ggsave('./Figures/Pseudotime.jpeg')
+Pseudocurve=plot(I$s, xlim=c(-20,10))
+ggsave('./Figures/Pseudotime.jpeg', plot=Pseudocurve)
 
 # Overlay principle curve for PCA in fig.1. Makes Fig. 2A
   ## Create two df, 
@@ -373,30 +360,27 @@ df1 %>%
   geom_smooth(data = df2, aes(x = PC1, y = PC2)) +
   theme(legend.position = "none")+xlim(-20,30)
 
-ggsave('Pseudotime_PCA_overlay.jpeg')
+ggsave('./Figures/Pseudotime_PCA_overlay.jpeg')
 ```
 
 ### Pseudotime analysis and gene expression: Heatmap
-? would you mind to include a brief description of the purspose of this section? can you also add a short description on what are we usign from the file `with_anther_size` (in line 387 please!), and check if there is no extension for that file? thanks!
 
-####### <description>
 
 #### Data preparation
 
 ####### Working with `with_anther_size` data file, and `qc` and `s3` dataframe. 
-####### `with_anther_size` contains ...
+#######`with_anther_size.csv` takes the normalized expression data in RNA_final and merges it with anther size thus, rep, cell, anther length and expression data are in the same file.
+
 ####### `qc` is a vector of cells that passed Quality COntrol (classification provided by the authors); `s3` is a 3046x2 dataframe with the explained variance by pseudotime for 3046 genes
 
 ```{r}
 # Create a df from `with_anther_size`
-ANTHER1 = read.csv("./Data/with_anther_size", header=T)
+ANTHER1 = read.csv("./Data/with_anther_size.csv", header=T)
 
 # Sort by Anther size in ascending order
 ANTHER2 = ANTHER1[order(ANTHER1$anther_size_mm),]
-ANTHER2 = as.tibble(ANTHER2)
+ANTHER3 = as.tibble(ANTHER2)
 
-# Remove cells that don't pass QC Result = 144 cells
-ANTHER3 <- filter(ANTHER2, cell %in% qc$`Cell Number`)
 
 # Transpose ANTHER3
 ANTHER4 = t(ANTHER3)
@@ -419,7 +403,9 @@ Anther_length_w_genes1 = (t(Anther_length_w_genes))
 ```
 
 #### Heatmap
-? are we including both heatmaps in the final submission, or we should choose only one?. Also, can you please name the heatmaps as objects, so then we can merge the heatmaps with the gene expression across time that I did for the 4 or 5 specif genes on the right hand side of the original figure 2D. Last, non really important, is there any reason why we are using `spearman` correlation for the heatmaps? (just curious, I'm not implying it is wrong!).
+
+####### Two heat maps are produced from expression data of 3040 genes. One compares the relationship of the genes while the other compares the relationships of the cells. To match the Nelms et al., 2019 analysis, pseudotime needs to  be placed in X-axis and compared against gene expression values.
+
 
 ```{r}
 # Make heatmap ordered by anther length
@@ -427,7 +413,7 @@ vst_cor<- as.matrix(cor(Anther_length_w_genes1, method = "spearman")) # for comp
 vst_cor2<- as.matrix(cor(Anther_length_w_genes, method = "spearman")) # for comparing 144 cells
 
 # Compares 3040 genes. 
-pheatmap(vst_cor, 
+Heatmap3040= pheatmap(vst_cor, 
          border_color = "white", 
          labels_col = NA, 
          labels_row = "3040 genes", 
@@ -436,10 +422,10 @@ pheatmap(vst_cor,
          cluster_rows = 2, 
          cluster_cols = 2)
 
-ggsave('./Figures/Heatmap_3040_genes.jpeg')
+ggsave('./Figures/Heatmap_3040_genes.jpeg', plot=Heatmap3040)
 
 # Compares 144 Cells
-pheatmap(vst_cor2,
+Heatmap144=pheatmap(vst_cor2,
          border_color = "white",
          labels_col = NA, 
          labels_row = NA, 
@@ -448,7 +434,7 @@ pheatmap(vst_cor2,
          cluster_rows = 2, 
          cluster_cols = 2)
 
-ggsave('./Figures/Heatmap_270.jpeg')
+ggsave('./Figures/Heatmap_144.jpeg', Heatmap144)
 ```
 
 #### Additional figures for 2D
@@ -485,6 +471,7 @@ for (i in 2:length(fig2)) {
 
 ``` {r}
 # 1. filtering
+Table.S1 <- readxl::read_excel('./Data/aav6428_Nelms_Table-S1.xlsx', sheet = 'Table S1')
 fig2df <- fig2df %>%  
   filter(value %in% c('Zm00001d027037', 'Zm00001d039101', 'Zm00001d009343', 'Zm00001d050069', 'Zm00001d013377')) 
 
@@ -577,7 +564,7 @@ fig2dextra <- (Unk1 / Rmf / Trps8 / Unk2) + plot_layout(guides = 'collect')
 ggsave('./Figures/Figure2_d.png', plot = fig2dextra)
 ```
 
-# Move to the beggining once everything is done
+# Move to the beginning once everything is done
 ? Please verify if any section of this code is duplicated in the sections Readind Data/ Re-shaping Data. also, can you add a brief description of the purpose of this section? 
 
 ### Principal component analysis and anther length
@@ -916,31 +903,32 @@ ggsave('./Figures/Figure3_A.png', plot = Figure3_A)
 
 ##### Filtering data
 ```{r}
-#Subset the Marker Genes from Anther data - RMF Gene is Removed by QC
+# Subset the Marker Genes from Anther data - RMF Gene is Removed by QC
 
 ANTH_MARKER <- ANTHER6[ANTHER6$"gene" %in% c("Zm00001d006351","Zm00001d008945","Zm00001d039101","Zm00001d050069"), ]
 
-#Add row names as a column for sorting for each gene
+# Add row names as a column for sorting for each gene
 setDT(ANTH_MARKER, keep.rownames = "gene")[]
 
-#Anther length with Marker Genes
-Anther_length_w_M = inner_join(ANTH_MARKER,s3)
+# Anther length with Marker Genes
+Anther_length_w_M = inner_join(ANTH_MARKER, s3)
 
-#Remove gene names
-Anther_length_w_M$gene=NULL
+# Rename genes
+Anther_length_w_M$gene <- c('Ago18a', 'Trps8', 'C3H3')
+
+# Gene names as rownames
+Anther_length_w_M <- Anther_length_w_M %>% column_to_rownames('gene')
 ```
 
 ##### Plotting a heatmap
 ``` {r}
-#Heatmap the three genes
-Figure3_B <- pheatmap(Anther_length_w_M,
-                      border_color=NA,
-                      labels_row = "Marker Genes",
-                      labels_col = F,
-                      breaks = 1:20,
-                      )
-ggsave('./Figures/Figure3_B.png', plot = Figure3_B)
+# Heatmap the three genes
+jpeg(file="./Figures/figure_3_b.jpg")
+heatmap(as.matrix(Anther_length_w_M[,-273]), Colv = NA, Rowv = NA)
+dev.off()
+
 ```
+
 
 ### Global view of transcriptional regulation during germinal differentiation
 
@@ -1140,7 +1128,7 @@ dim(rna_norm_456)
 # PCA of 448 genes after filtering MEG out from rna_norm1
 PCA_figure5a = prcomp(rna_norm_456[,-1], center = TRUE, scale. = TRUE)
 
-?# Filter Table_S2 to get genes.... (are these deg?)
+# Filter Table_S2 to get genes.... (are these deg?)
 Table_S2.1 <- Table_S2 %>% 
   filter (gene %in% rna_norm_456$Gene)
 
